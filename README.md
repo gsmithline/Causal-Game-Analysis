@@ -87,7 +87,7 @@ This answers: *"If incumbent $\pi_i$ faces candidate $\pi_j$ instead of a typica
 
 | Aggregation | Formula |
 |-------------|---------|
-| Uniform average | $\overline{\text{PL}}_1^{\text{unif}}(\pi_j \mid B) := \frac{1}{\|B\|} \sum_{\pi_i \in B} \text{PL}_1(\pi_i; \pi_j \mid B)$ |
+| Uniform average | $\overline{\text{PL}}_1^{\text{unif}}(\pi_j \mid B) := \frac{1}{\lvert B \rvert} \sum_{\pi_i \in B} \text{PL}_1(\pi_i; \pi_j \mid B)$ |
 | Equilibrium-weighted | $\overline{\text{PL}}_1^{\sigma}(\pi_j \mid B) := \sum_{\pi_i \in B} \sigma_B(\pi_i) \, \text{PL}_1(\pi_i; \pi_j \mid B)$ |
 | Worst-case | $\text{PL}_1^{\min}(\pi_j \mid B) := \min_{\pi_i \in B} \text{PL}_1(\pi_i; \pi_j \mid B)$ |
 | Best-case | $\text{PL}_1^{\max}(\pi_j \mid B) := \max_{\pi_i \in B} \text{PL}_1(\pi_i; \pi_j \mid B)$ |
@@ -112,7 +112,7 @@ where $V_S(\pi_i) := \sum_{\pi \in S} \sigma_S(\pi) \, \mu(\pi_i, \pi)$.
 
 | Metric | Formula |
 |--------|---------|
-| Equilibrium shift | $\Delta_\sigma(\pi_j \mid B) := \|\sigma_{B^+} - \sigma_B\|_1$ |
+| Equilibrium shift | $\Delta_\sigma(\pi_j \mid B) := \lVert \sigma_{B^+} - \sigma_B \rVert_1$ |
 | Entry mass | $\text{EntryMass}(\pi_j \mid B) := \sigma_{B^+}(\pi_j)$ |
 
 ---
