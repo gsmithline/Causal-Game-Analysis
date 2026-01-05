@@ -71,7 +71,7 @@ $$W(S) := \mathbb{E}\big[W_L \mid \text{do}(L=S)\big] = Y_{\text{eco}}(\sigma_S,
 
 ### Level 1: Interaction-Level (No Re-Equilibration)
 
-Measures how a candidate $\pi_j$ performs as a partner compared to the baseline equilibrium mixture, **without** allowing the ecosystem to re-equilibrate.
+Level 1 measures the direct interaction effect of a candidate policy $\pi_j$ without letting the ecosystem adapt. You fix a baseline reduced library $B$ and its equilibrium mixture $\sigma_B$. Then, for each incumbent $\pi_i \in B$, you compare the outcome of the pair $(\pi_i, \pi_j)$ to $\pi_i$'s baseline expectation when facing a "typical" partner drawn from $\sigma_B$. This answers: if we drop $\pi_j$ into the existing world as a partner, does it help or hurt incumbents relative to what they normally face at equilibrium?
 
 **Baseline equilibrium interaction value** for incumbent $\pi_i \in B$:
 
@@ -81,22 +81,22 @@ $$U_B(\pi_i) := \mathbb{E}_{\pi \sim \sigma_B}\big[\mu(\pi_i, \pi)\big] = \sum_{
 
 $$\text{PL}_1(\pi_i; \pi_j \mid B) := \mu(\pi_i, \pi_j) - U_B(\pi_i)$$
 
-This answers: *"If incumbent $\pi_i$ faces candidate $\pi_j$ instead of a typical equilibrium partner, what is the expected change in outcome?"*
+This answers: *"If incumbent $\pi\_i$ faces candidate $\pi\_j$ instead of a typical equilibrium partner, what is the expected change in outcome?"*
 
 **Aggregations:**
 
 | Aggregation | Formula |
 |-------------|---------|
-| Uniform average | $\overline{\text{PL}}_1^{\text{unif}}(\pi_j \mid B) := \frac{1}{\lvert B \rvert} \sum_{\pi_i \in B} \text{PL}_1(\pi_i; \pi_j \mid B)$ |
-| Equilibrium-weighted | $\overline{\text{PL}}_1^{\sigma}(\pi_j \mid B) := \sum_{\pi_i \in B} \sigma_B(\pi_i) \, \text{PL}_1(\pi_i; \pi_j \mid B)$ |
-| Worst-case | $\text{PL}_1^{\min}(\pi_j \mid B) := \min_{\pi_i \in B} \text{PL}_1(\pi_i; \pi_j \mid B)$ |
-| Best-case | $\text{PL}_1^{\max}(\pi_j \mid B) := \max_{\pi_i \in B} \text{PL}_1(\pi_i; \pi_j \mid B)$ |
+| Uniform average | $\overline{\text{PL}}\_1^{\text{unif}}(\pi\_j \mid B) := \frac{1}{\lvert B \rvert} \sum\_{\pi\_i \in B} \text{PL}\_1(\pi\_i; \pi\_j \mid B)$ |
+| Equilibrium-weighted | $\overline{\text{PL}}\_1^{\sigma}(\pi\_j \mid B) := \sum\_{\pi\_i \in B} \sigma\_B(\pi\_i) \, \text{PL}\_1(\pi\_i; \pi\_j \mid B)$ |
+| Worst-case | $\text{PL}\_1^{\min}(\pi\_j \mid B) := \min\_{\pi\_i \in B} \text{PL}\_1(\pi\_i; \pi\_j \mid B)$ |
+| Best-case | $\text{PL}\_1^{\max}(\pi\_j \mid B) := \max\_{\pi\_i \in B} \text{PL}\_1(\pi\_i; \pi\_j \mid B)$ |
 
 ---
 
 ### Level 2: Ecosystem-Level (Re-Equilibration)
 
-Measures the causal effect of adding $\pi_j$ to the library, **allowing** strategic adaptation via re-equilibration.
+Level 2 measures the ecosystem effect of making $\pi_j$ available to the system and allowing strategic adaptation. You intervene on the library by adding $\pi_j$ to $B$ to form $B^+ = B \cup \{\pi_j\}$, re-estimate/assemble the meta-game on $B^+$, re-solve equilibrium to get $\sigma_{B^+}$, and then compare the resulting ecosystem value $W(B^+)$ to $W(B)$. This answers: does $\pi_j$'s presence change equilibrium behavior and improve (or degrade) the equilibrium-selected outcome of the whole population?
 
 Let $B^+ := B \cup \{\pi_j\}$. The **ecosystem lift** is:
 
@@ -119,7 +119,7 @@ where $V_S(\pi_i) := \sum_{\pi \in S} \sigma_S(\pi) \, \mu(\pi_i, \pi)$.
 
 ### Level 3: Ecosystem Attribution (Shapley/Banzhaf)
 
-Attributes ecosystem value to individual policies using cooperative game theory.
+Level 3 assigns synergy-aware credit for ecosystem outcomes across many possible reduced ecosystems, instead of relying on a single baseline $B$. You treat the ecosystem value $W(S)$ as a cooperative-game value function $v(S)$ over sub-libraries $S \subseteq \Pi$, and compute Shapley or Banzhaf values for each policy. This answers: on average across many "possible worlds" (different sub-libraries), how much marginal ecosystem value does each policy contribute, accounting for complementarities and redundancy among policies?
 
 Define the value function:
 
