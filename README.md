@@ -81,7 +81,7 @@ $$U_B(\pi_i) := \mathbb{E}_{\pi \sim \sigma_B}\big[\mu(\pi_i, \pi)\big] = \sum_{
 
 $$\text{PL}_1(\pi_i; \pi_j \mid B) := \mu(\pi_i, \pi_j) - U_B(\pi_i)$$
 
-This answers: *"If incumbent $\pi_i$ faces candidate $\pi_j$ instead of a typical equilibrium partner, what is the expected change in outcome?"*
+This answers: "If incumbent $\pi_i$ faces candidate $\pi_j$ instead of a typical equilibrium partner, what is the expected change in outcome?"
 
 **Aggregations:**
 
