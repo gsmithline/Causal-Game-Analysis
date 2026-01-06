@@ -11,13 +11,11 @@ Requires Python 3.10+. Install using [uv](https://github.com/astral-sh/uv):
 git clone https://github.com/your-username/Causal-Game-Analysis.git
 cd Causal-Game-Analysis
 
-# Create virtual environment and install dependencies
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-uv pip install -e .
+# Sync dependencies (creates venv automatically)
+uv sync
 
 # For development (includes testing and linting tools)
-uv pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
 ## Framework Overview
