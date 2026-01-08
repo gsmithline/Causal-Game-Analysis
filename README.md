@@ -18,6 +18,186 @@ uv sync
 uv sync --extra dev
 ```
 
+## Quick Start
+
+### Basic Usage
+
+```python
+import pandas as pd
+import numpy as np
+from causal_game_analysis import (
+    MetaGame,
+    Bootstrap,
+    level1_analysis,
+    ecosystem_lift,
+    shapley_value,
+)
+
+# Create or load cross-play data
+# Format: DataFrame with columns (policy_i, policy_j, outcome)
+df = pd.DataFrame([
+    {"policy_i": "alice", "policy_j": "bob", "outcome": 0.8},
+    {"policy_i": "alice", "policy_j": "carol", "outcome": 0.6},
+    {"policy_i": "bob", "policy_j": "alice", "outcome": 0.7},
+    # ... more cross-play results
+])
+
+# Build meta-game from raw data
+game = MetaGame.from_dataframe(df)
+
+# Compute equilibrium
+sigma = game.solve("mene")  # Max-entropy Nash equilibrium
+print("Equilibrium:", dict(zip(game.policies, sigma)))
+```
+
+### Level 1: Partner Lift Analysis
+
+```python
+# Evaluate a candidate policy against a baseline
+result = level1_analysis(
+    metagame=game,
+    baseline_policies=["alice", "bob"],
+    candidate="carol",
+    solver="mene"
+)
+
+print("Partner Lift per incumbent:", result["per_incumbent"])
+print("Uniform average:", result["uniform_avg"])
+print("Equilibrium-weighted average:", result["equilibrium_avg"])
+print("Worst-case:", result["min"])
+print("Best-case:", result["max"])
+```
+
+### Level 2: Ecosystem Lift Analysis
+
+```python
+# Measure ecosystem impact with re-equilibration
+result = ecosystem_lift(
+    metagame=game,
+    baseline_policies=["alice", "bob"],
+    candidate="carol",
+    solver="mene",
+    welfare_fn="utilitarian"  # or "nash", "egalitarian"
+)
+
+print("Ecosystem lift:", result["delta_eco"])
+print("Entry mass:", result["entry_mass"])
+print("Equilibrium shift:", result["equilibrium_shift"])
+print("Incumbent value shifts:", result["incumbent_shifts"])
+```
+
+### Level 3: Shapley Attribution
+
+```python
+# Compute Shapley values for ecosystem attribution
+def value_fn(policies):
+    if len(policies) < 2:
+        return 0.0
+    sub_game = game.subset(policies)
+    sigma = sub_game.solve("mene")
+    return sub_game.welfare(sigma, "utilitarian")
+
+shapley = shapley_value(game.policies, value_fn)
+print("Shapley values:", shapley)
+
+# Or Banzhaf values
+from causal_game_analysis import banzhaf_value
+banzhaf = banzhaf_value(game.policies, value_fn)
+```
+
+### Bootstrap for Uncertainty Quantification
+
+```python
+# Bootstrap resampling for confidence intervals
+bootstrap = Bootstrap(df, n_samples=1000, seed=42)
+
+# Run any analysis on bootstrap samples
+def analyze(g):
+    return level1_analysis(g, ["alice", "bob"], "carol")["uniform_avg"]
+
+results = bootstrap.run(analyze, progress=True)
+
+# Get confidence interval
+lower, median, upper = Bootstrap.confidence_interval(results, alpha=0.05)
+print(f"95% CI: [{lower:.3f}, {upper:.3f}]")
+```
+
+### EF1 Fairness Analysis (for Bargaining)
+
+```python
+from causal_game_analysis import ef1_frequency_matrix, aggregate_ef1_between_groups
+
+# If your data includes EF1 indicator column
+df_with_ef1 = pd.DataFrame([
+    {"policy_i": "gpt4", "policy_j": "claude", "outcome": 0.8, "ef1": 1},
+    {"policy_i": "gpt4", "policy_j": "llama", "outcome": 0.6, "ef1": 0},
+    # ...
+])
+
+# EF1 frequency matrix
+ef1_matrix, policies = ef1_frequency_matrix(df_with_ef1)
+
+# Compare EF1 between groups
+ef1_stats = aggregate_ef1_between_groups(
+    df_with_ef1,
+    group_a=["gpt4", "claude"],
+    group_b=["llama", "mistral"]
+)
+print("EF1 frequency (Group A vs B):", ef1_stats["a_vs_b"])
+print("EF1 frequency (within Group A):", ef1_stats["within_a"])
+```
+
+### Direct Matrix Construction
+
+```python
+# If you already have a payoff matrix
+payoff_matrix = np.array([
+    [0.5, 0.0, 1.0],  # rock
+    [1.0, 0.5, 0.0],  # paper
+    [0.0, 1.0, 0.5],  # scissors
+])
+
+game = MetaGame(
+    policies=["rock", "paper", "scissors"],
+    payoff_matrix=payoff_matrix
+)
+```
+
+## API Reference
+
+### Core Classes
+
+| Class | Description |
+|-------|-------------|
+| `MetaGame` | Empirical meta-game representation with payoff matrix |
+| `Bootstrap` | Bootstrap resampling for uncertainty quantification |
+
+### Analysis Functions
+
+| Function | Level | Description |
+|----------|-------|-------------|
+| `level1_analysis()` | 1 | Partner Lift (no re-equilibration) |
+| `ecosystem_lift()` | 2 | Ecosystem Lift (with re-equilibration) |
+| `shapley_value()` | 3 | Shapley attribution values |
+| `banzhaf_value()` | 3 | Banzhaf attribution values |
+
+### Fairness Metrics
+
+| Function | Description |
+|----------|-------------|
+| `ef1_frequency()` | EF1 frequency per policy pair |
+| `ef1_frequency_matrix()` | EF1 frequency as matrix |
+| `aggregate_ef1_between_groups()` | Compare EF1 between policy groups |
+
+### Solvers
+
+| Solver | Description |
+|--------|-------------|
+| `"mene"` | Maximum Entropy Nash Equilibrium (MILP-based) |
+| `"uniform"` | Uniform distribution (baseline) |
+
+---
+
 ## Framework Overview
 
 ### Objects and Notation

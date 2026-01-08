@@ -24,6 +24,8 @@ dependencies = [
     "numpy>=1.24.0",
     "scipy>=1.10.0",
     "nashpy>=0.0.41",
+    "pandas>=2.0.0",
+    "cvxpy>=1.4.0",
 ]
 
 [project.optional-dependencies]
@@ -43,7 +45,9 @@ include = ["src/causal_game_analysis"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/causal_game_analysis"]
-sources = ["src"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src" = ""
 
 [tool.ruff]
 line-length = 100
