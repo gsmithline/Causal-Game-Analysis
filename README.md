@@ -202,41 +202,47 @@ game = MetaGame(
 
 ### Game-Theoretic Foundations
 
-We model multi-agent evaluation as an empirical game $\hat{G} = (N, (S_i), (\hat{u}_i))$ where:
+We model multi-agent evaluation as an empirical game Ĝ = (N, (Sᵢ), (ûᵢ)) where:
 
-| Symbol | Description |
-|--------|-------------|
-| $N$ | Set of player roles (typically $N = \{1, 2\}$ for pairwise evaluation) |
-| $S_i$ | Strategy set for player $i$ (the set of available policies) |
-| $\hat{u}_i : \prod_{j \in N} S_j \to \mathbb{R}$ | Estimated utility function for player $i$ |
-| $\sigma_i \in \Delta(S_i)$ | Mixed strategy for player $i$ (distribution over policies) |
-| $\sigma_{-i}$ | Strategy profile of all players except $i$ |
+- **N** — Set of player roles (typically N = {1, 2} for pairwise evaluation)
+- **Sᵢ** — Strategy set for player i (the set of available policies)
+- **ûᵢ** — Estimated utility function ûᵢ : ∏ⱼ∈N Sⱼ → ℝ
+- **σᵢ** — Mixed strategy for player i, where σᵢ ∈ Δ(Sᵢ)
+- **σ₋ᵢ** — Strategy profile of all players except i
 
 ### Strategy Restriction
 
-Following empirical game-theoretic analysis, we consider restricted strategy sets. Let $S \downarrow X$ denote restriction to $X_i \subseteq S_i$. The restricted empirical game is:
+Following empirical game-theoretic analysis, we consider restricted strategy sets. Let S↓X denote restriction to Xᵢ ⊆ Sᵢ. The restricted empirical game is:
 
-$$\hat{G}_{S \downarrow X} = (N, (X_i), (\hat{u}_i))$$
+```
+Ĝ_{S↓X} = (N, (Xᵢ), (ûᵢ))
+```
 
 In our framework:
-- $X$ represents the **baseline library** of policies
-- $X^+ = X \cup \{s_j\}$ represents the library after adding candidate $s_j$
+- **X** represents the **baseline library** of policies
+- **X⁺ = X ∪ {sⱼ}** represents the library after adding candidate sⱼ
 
 ### Equilibrium and Regret
 
-A mixed strategy profile $\sigma^*$ is a **Nash equilibrium** if:
+A mixed strategy profile σ* is a **Nash equilibrium** if:
 
-$$\sigma^*_i \in \text{br}_i(\sigma^*_{-i}) \quad \forall i \in N$$
+```
+σ*ᵢ ∈ brᵢ(σ*₋ᵢ)   ∀i ∈ N
+```
 
-where $\text{br}_i(\sigma_{-i}) = \arg\max_{\sigma'_i \in \Delta(S_i)} u_i(\sigma'_i, \sigma_{-i})$.
+where brᵢ(σ₋ᵢ) = argmax over σ'ᵢ ∈ Δ(Sᵢ) of uᵢ(σ'ᵢ, σ₋ᵢ).
 
-Player $i$'s **regret** in profile $\sigma$:
+Player i's **regret** in profile σ:
 
-$$\rho^G_i(\sigma) = \max_{s'_i \in S_i} u_i(s'_i, \sigma_{-i}) - u_i(\sigma_i, \sigma_{-i})$$
+```
+ρᴳᵢ(σ) = max_{s'ᵢ ∈ Sᵢ} uᵢ(s'ᵢ, σ₋ᵢ) − uᵢ(σᵢ, σ₋ᵢ)
+```
 
 The **minimum regret constrained profile** (MRCP) for a restricted game:
 
-$$\text{MRCP}(G_{S \downarrow X}) = \arg\min_{\sigma \in \Delta(X)} \sum_{i \in N} \rho^G_i(\sigma)$$
+```
+MRCP(G_{S↓X}) = argmin_{σ ∈ Δ(X)} Σᵢ∈N ρᴳᵢ(σ)
+```
 
 ---
 
@@ -244,65 +250,83 @@ $$\text{MRCP}(G_{S \downarrow X}) = \arg\min_{\sigma \in \Delta(X)} \sum_{i \in 
 
 ### Level 1: Interaction-Level (No Re-Equilibration)
 
-Level 1 measures direct interaction effects without ecosystem adaptation. Fix a baseline library $X$ and its equilibrium $\sigma_X$. For each incumbent strategy $s_i \in X$, compare outcomes against candidate $s_j$ versus typical equilibrium partners.
+Level 1 measures direct interaction effects without ecosystem adaptation. Fix a baseline library X and its equilibrium σ_X. For each incumbent strategy sᵢ ∈ X, compare outcomes against candidate sⱼ versus typical equilibrium partners.
 
-**Baseline expected utility** for incumbent $s_i \in X$:
+**Baseline expected utility** for incumbent sᵢ ∈ X:
 
-$$U_X(s_i) := \sum_{s \in X} \sigma_X(s) \cdot u(s_i, s)$$
+```
+U_X(sᵢ) := Σ_{s ∈ X} σ_X(s) · u(sᵢ, s)
+```
 
 **Partner Lift** (strategy-specific):
 
-$$\text{PL}_1(s_i; s_j \mid X) := u(s_i, s_j) - U_X(s_i)$$
+```
+PL₁(sᵢ; sⱼ | X) := u(sᵢ, sⱼ) − U_X(sᵢ)
+```
 
 **Aggregations:**
 
-| Aggregation | Formula |
-|-------------|---------|
-| Uniform average | $\overline{\text{PL}}_1^{\text{unif}}(s_j \mid X) := \frac{1}{|X|} \sum_{s_i \in X} \text{PL}_1(s_i; s_j \mid X)$ |
-| Equilibrium-weighted | $\overline{\text{PL}}_1^{\sigma}(s_j \mid X) := \sum_{s_i \in X} \sigma_X(s_i) \cdot \text{PL}_1(s_i; s_j \mid X)$ |
-| Worst-case | $\text{PL}_1^{\min}(s_j \mid X) := \min_{s_i \in X} \text{PL}_1(s_i; s_j \mid X)$ |
-| Best-case | $\text{PL}_1^{\max}(s_j \mid X) := \max_{s_i \in X} \text{PL}_1(s_i; s_j \mid X)$ |
+| Aggregation | Description |
+|-------------|-------------|
+| Uniform average | (1/\|X\|) Σ PL₁(sᵢ; sⱼ \| X) over all sᵢ ∈ X |
+| Equilibrium-weighted | Σ σ_X(sᵢ) · PL₁(sᵢ; sⱼ \| X) over all sᵢ ∈ X |
+| Worst-case | min over sᵢ ∈ X of PL₁(sᵢ; sⱼ \| X) |
+| Best-case | max over sᵢ ∈ X of PL₁(sᵢ; sⱼ \| X) |
 
 ---
 
 ### Level 2: Ecosystem-Level (Re-Equilibration)
 
-Level 2 measures ecosystem effects with strategic adaptation. Expand the strategy set to $X^+ = X \cup \{s_j\}$, compute new equilibrium $\sigma_{X^+}$, and compare welfare.
+Level 2 measures ecosystem effects with strategic adaptation. Expand the strategy set to X⁺ = X ∪ {sⱼ}, compute new equilibrium σ_{X⁺}, and compare welfare.
 
-**Welfare function** over profile $\sigma$ in game $G$:
+**Welfare function** over profile σ in game G:
 
-$$W(\sigma, G) = f\big((u_i(\sigma))_{i \in N}\big)$$
+```
+W(σ, G) = f((uᵢ(σ))_{i ∈ N})
+```
 
-Common choices: utilitarian ($\sum_i u_i$), Nash product ($\prod_i u_i$), egalitarian ($\min_i u_i$).
+Common choices: utilitarian (Σᵢ uᵢ), Nash product (Πᵢ uᵢ), egalitarian (minᵢ uᵢ).
 
 **Ecosystem lift:**
 
-$$\Delta_{\text{eco}}(s_j \mid X) := W(\sigma_{X^+}, G_{S \downarrow X^+}) - W(\sigma_X, G_{S \downarrow X})$$
+```
+Δ_eco(sⱼ | X) := W(σ_{X⁺}, G_{S↓X⁺}) − W(σ_X, G_{S↓X})
+```
 
 **Incumbent value shift** under re-equilibration:
 
-$$\Delta_{\text{inc}}(s_i; s_j \mid X) := U_{X^+}(s_i) - U_X(s_i)$$
+```
+Δ_inc(sᵢ; sⱼ | X) := U_{X⁺}(sᵢ) − U_X(sᵢ)
+```
 
 **Equilibrium diagnostics:**
 
-| Metric | Formula |
-|--------|---------|
-| Equilibrium shift | $\|\sigma_{X^+} - \sigma_X\|_1$ (restricted to $X$) |
-| Entry mass | $\sigma_{X^+}(s_j)$ |
+| Metric | Description |
+|--------|-------------|
+| Equilibrium shift | ‖σ_{X⁺} − σ_X‖₁ (L1 norm, restricted to X) |
+| Entry mass | σ_{X⁺}(sⱼ) |
 
 ---
 
 ### Level 3: Ecosystem Attribution (Shapley/Banzhaf)
 
-Level 3 assigns credit across sub-ecosystems using cooperative game theory. Define value function $v(X) := W(\sigma_X, G_{S \downarrow X})$.
+Level 3 assigns credit across sub-ecosystems using cooperative game theory. Define value function:
+
+```
+v(X) := W(σ_X, G_{S↓X})
+```
 
 **Shapley value:**
 
-$$\phi(s) := \frac{1}{|S|!} \sum_{\text{orderings } \prec} \big[v(\text{Pred}_\prec(s) \cup \{s\}) - v(\text{Pred}_\prec(s))\big]$$
+```
+φ(s) := (1/|S|!) Σ_{orderings ≺} [v(Pred_≺(s) ∪ {s}) − v(Pred_≺(s))]
+```
 
 **Banzhaf value:**
 
-$$\beta(s) := \frac{1}{2^{|S|-1}} \sum_{X \subseteq S \setminus \{s\}} \big[v(X \cup \{s\}) - v(X)\big]$$
+```
+β(s) := (1/2^{|S|−1}) Σ_{X ⊆ S∖{s}} [v(X ∪ {s}) − v(X)]
+```
 
 ---
 
@@ -310,21 +334,25 @@ $$\beta(s) := \frac{1}{2^{|S|-1}} \sum_{X \subseteq S \setminus \{s\}} \big[v(X 
 
 | Aspect | Level 1 | Level 2 |
 |--------|---------|---------|
-| Strategy set | Fixed $X$ | Expanded $X^+$ |
-| Equilibrium | Baseline $\sigma_X$ unchanged | Recomputed $\sigma_{X^+}$ |
+| Strategy set | Fixed X | Expanded X⁺ |
+| Equilibrium | Baseline σ_X unchanged | Recomputed σ_{X⁺} |
 | Interpretation | Partner quality | Ecosystem impact |
 
 ---
 
 ## Solver Sensitivity
 
-Equilibrium selection affects all metrics. For solver $\mathcal{S}$:
+Equilibrium selection affects all metrics. For solver 𝒮:
 
-$$W_{\mathcal{S}}(X) := W\big(\mathcal{S}(G_{S \downarrow X}), G_{S \downarrow X}\big)$$
+```
+W_𝒮(X) := W(𝒮(G_{S↓X}), G_{S↓X})
+```
 
 Solver sensitivity:
 
-$$\text{Sens}(\mathcal{S}_1, \mathcal{S}_2; X) := W_{\mathcal{S}_1}(X) - W_{\mathcal{S}_2}(X)$$
+```
+Sens(𝒮₁, 𝒮₂; X) := W_{𝒮₁}(X) − W_{𝒮₂}(X)
+```
 
 ---
 
