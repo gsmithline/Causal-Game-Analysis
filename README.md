@@ -200,48 +200,43 @@ game = MetaGame(
 
 ## Framework Overview
 
-### Objects and Notation
+### Game-Theoretic Foundations
+
+We model multi-agent evaluation as an empirical game $\hat{G} = (N, (S_i), (\hat{u}_i))$ where:
 
 | Symbol | Description |
 |--------|-------------|
-| $\Pi = \{\pi_1, \ldots, \pi_n\}$ | Universe of policies |
-| $B \subseteq \Pi$ | Baseline (reduced) library |
-| $\pi_j \in \Pi \setminus B$ | Candidate policy (not in baseline) |
-| $\pi_i \in B$ | Incumbent policy (in baseline) |
-| $Y \in \mathbb{R}$ | Scalar evaluation outcome |
+| $N$ | Set of player roles (typically $N = \{1, 2\}$ for pairwise evaluation) |
+| $S_i$ | Strategy set for player $i$ (the set of available policies) |
+| $\hat{u}_i : \prod_{j \in N} S_j \to \mathbb{R}$ | Estimated utility function for player $i$ |
+| $\sigma_i \in \Delta(S_i)$ | Mixed strategy for player $i$ (distribution over policies) |
+| $\sigma_{-i}$ | Strategy profile of all players except $i$ |
 
-### Pairwise Cross-Play Outcome
+### Strategy Restriction
 
-For any ordered pair $(\pi, \pi')$, the true pairwise expected outcome is:
+Following empirical game-theoretic analysis, we consider restricted strategy sets. Let $S \downarrow X$ denote restriction to $X_i \subseteq S_i$. The restricted empirical game is:
 
-$$\mu(\pi, \pi') := \mathbb{E}\big[Y \mid \text{do}(A=\pi, B=\pi')\big]$$
+$$\hat{G}_{S \downarrow X} = (N, (X_i), (\hat{u}_i))$$
 
-where $A$ and $B$ denote the two player roles. In practice, $\mu(\pi, \pi')$ is estimated empirically from cross-play.
+In our framework:
+- $X$ represents the **baseline library** of policies
+- $X^+ = X \cup \{s_j\}$ represents the library after adding candidate $s_j$
 
-### Causal Pipeline
+### Equilibrium and Regret
 
-The framework defines a structural causal model over the following variables:
+A mixed strategy profile $\sigma^*$ is a **Nash equilibrium** if:
 
-$$L \rightarrow M_L \rightarrow \sigma_L \rightarrow W_L$$
+$$\sigma^*_i \in \text{br}_i(\sigma^*_{-i}) \quad \forall i \in N$$
 
-| Variable | Description |
-|----------|-------------|
-| $L$ | Available library (set-valued, $S \subseteq \Pi$) |
-| $M_L$ | Empirical meta-game induced by library $L$ |
-| $\sigma_L$ | Meta-solution (equilibrium mixture) from solver $\mathcal{S}$ |
-| $W_L$ | Ecosystem scalar value |
+where $\text{br}_i(\sigma_{-i}) = \arg\max_{\sigma'_i \in \Delta(S_i)} u_i(\sigma'_i, \sigma_{-i})$.
 
-**Structural equations** (given a fixed solver $\mathcal{S}$ and evaluation functional $Y_{\text{eco}}$):
+Player $i$'s **regret** in profile $\sigma$:
 
-$$\begin{aligned}
-M_L &= g(L) \\
-\sigma_L &= \mathcal{S}(M_L) \\
-W_L &= Y_{\text{eco}}(\sigma_L, M_L)
-\end{aligned}$$
+$$\rho^G_i(\sigma) = \max_{s'_i \in S_i} u_i(s'_i, \sigma_{-i}) - u_i(\sigma_i, \sigma_{-i})$$
 
-The key causal estimand is:
+The **minimum regret constrained profile** (MRCP) for a restricted game:
 
-$$W(S) := \mathbb{E}\big[W_L \mid \text{do}(L=S)\big] = Y_{\text{eco}}(\sigma_S, M_S)$$
+$$\text{MRCP}(G_{S \downarrow X}) = \arg\min_{\sigma \in \Delta(X)} \sum_{i \in N} \rho^G_i(\sigma)$$
 
 ---
 
@@ -249,69 +244,65 @@ $$W(S) := \mathbb{E}\big[W_L \mid \text{do}(L=S)\big] = Y_{\text{eco}}(\sigma_S,
 
 ### Level 1: Interaction-Level (No Re-Equilibration)
 
-Level 1 measures the direct interaction effect of a candidate policy $\pi_j$ without letting the ecosystem adapt. You fix a baseline reduced library $B$ and its equilibrium mixture $\sigma_B$. Then, for each incumbent $\pi_i \in B$, you compare the outcome of the pair $(\pi_i, \pi_j)$ to $\pi_i$'s baseline expectation when facing a "typical" partner drawn from $\sigma_B$. This answers: if we drop $\pi_j$ into the existing world as a partner, does it help or hurt incumbents relative to what they normally face at equilibrium?
+Level 1 measures direct interaction effects without ecosystem adaptation. Fix a baseline library $X$ and its equilibrium $\sigma_X$. For each incumbent strategy $s_i \in X$, compare outcomes against candidate $s_j$ versus typical equilibrium partners.
 
-**Baseline equilibrium interaction value** for incumbent $\pi_i \in B$:
+**Baseline expected utility** for incumbent $s_i \in X$:
 
-$$U_B(\pi_i) := \mathbb{E}_{\pi \sim \sigma_B}\big[\mu(\pi_i, \pi)\big] = \sum_{\pi \in B} \sigma_B(\pi) \, \mu(\pi_i, \pi)$$
+$$U_X(s_i) := \sum_{s \in X} \sigma_X(s) \cdot u(s_i, s)$$
 
-**Partner Lift** (incumbent-specific):
+**Partner Lift** (strategy-specific):
 
-$$\text{PL}_1(\pi_i; \pi_j \mid B) := \mu(\pi_i, \pi_j) - U_B(\pi_i)$$
-
-This answers: "If incumbent $\pi_i$ faces candidate $\pi_j$ instead of a typical equilibrium partner, what is the expected change in outcome?"
+$$\text{PL}_1(s_i; s_j \mid X) := u(s_i, s_j) - U_X(s_i)$$
 
 **Aggregations:**
 
 | Aggregation | Formula |
 |-------------|---------|
-| Uniform average | $\overline{\text{PL}}\_1^{\text{unif}}(\pi\_j \mid B) := \frac{1}{\lvert B \rvert} \sum\_{\pi\_i \in B} \text{PL}\_1(\pi\_i; \pi\_j \mid B)$ |
-| Equilibrium-weighted | $\overline{\text{PL}}\_1^{\sigma}(\pi\_j \mid B) := \sum\_{\pi\_i \in B} \sigma\_B(\pi\_i) \, \text{PL}\_1(\pi\_i; \pi\_j \mid B)$ |
-| Worst-case | $\text{PL}\_1^{\min}(\pi\_j \mid B) := \min\_{\pi\_i \in B} \text{PL}\_1(\pi\_i; \pi\_j \mid B)$ |
-| Best-case | $\text{PL}\_1^{\max}(\pi\_j \mid B) := \max\_{\pi\_i \in B} \text{PL}\_1(\pi\_i; \pi\_j \mid B)$ |
+| Uniform average | $\overline{\text{PL}}_1^{\text{unif}}(s_j \mid X) := \frac{1}{|X|} \sum_{s_i \in X} \text{PL}_1(s_i; s_j \mid X)$ |
+| Equilibrium-weighted | $\overline{\text{PL}}_1^{\sigma}(s_j \mid X) := \sum_{s_i \in X} \sigma_X(s_i) \cdot \text{PL}_1(s_i; s_j \mid X)$ |
+| Worst-case | $\text{PL}_1^{\min}(s_j \mid X) := \min_{s_i \in X} \text{PL}_1(s_i; s_j \mid X)$ |
+| Best-case | $\text{PL}_1^{\max}(s_j \mid X) := \max_{s_i \in X} \text{PL}_1(s_i; s_j \mid X)$ |
 
 ---
 
 ### Level 2: Ecosystem-Level (Re-Equilibration)
 
-Level 2 measures the ecosystem effect of making $\pi_j$ available to the system and allowing strategic adaptation. You intervene on the library by adding $\pi_j$ to $B$ to form $B^+ = B \cup \{\pi_j\}$, re-estimate/assemble the meta-game on $B^+$, re-solve equilibrium to get $\sigma_{B^+}$, and then compare the resulting ecosystem value $W(B^+)$ to $W(B)$. This answers: does $\pi_j$'s presence change equilibrium behavior and improve (or degrade) the equilibrium-selected outcome of the whole population?
+Level 2 measures ecosystem effects with strategic adaptation. Expand the strategy set to $X^+ = X \cup \{s_j\}$, compute new equilibrium $\sigma_{X^+}$, and compare welfare.
 
-Let $B^+ := B \cup \{\pi_j\}$. The **ecosystem lift** is:
+**Welfare function** over profile $\sigma$ in game $G$:
 
-$$\Delta_{\text{eco}}(\pi_j \mid B) := W(B^+) - W(B) = \mathbb{E}\big[W_L \mid \text{do}(L=B^+)\big] - \mathbb{E}\big[W_L \mid \text{do}(L=B)\big]$$
+$$W(\sigma, G) = f\big((u_i(\sigma))_{i \in N}\big)$$
+
+Common choices: utilitarian ($\sum_i u_i$), Nash product ($\prod_i u_i$), egalitarian ($\min_i u_i$).
+
+**Ecosystem lift:**
+
+$$\Delta_{\text{eco}}(s_j \mid X) := W(\sigma_{X^+}, G_{S \downarrow X^+}) - W(\sigma_X, G_{S \downarrow X})$$
 
 **Incumbent value shift** under re-equilibration:
 
-$$\Delta_{\text{inc}}(\pi_i; \pi_j \mid B) := V_{B^+}(\pi_i) - V_B(\pi_i)$$
-
-where $V_S(\pi_i) := \sum_{\pi \in S} \sigma_S(\pi) \, \mu(\pi_i, \pi)$.
+$$\Delta_{\text{inc}}(s_i; s_j \mid X) := U_{X^+}(s_i) - U_X(s_i)$$
 
 **Equilibrium diagnostics:**
 
 | Metric | Formula |
 |--------|---------|
-| Equilibrium shift | $\Delta_\sigma(\pi_j \mid B) := \lVert \sigma_{B^+} - \sigma_B \rVert_1$ |
-| Entry mass | $\text{EntryMass}(\pi_j \mid B) := \sigma_{B^+}(\pi_j)$ |
+| Equilibrium shift | $\|\sigma_{X^+} - \sigma_X\|_1$ (restricted to $X$) |
+| Entry mass | $\sigma_{X^+}(s_j)$ |
 
 ---
 
 ### Level 3: Ecosystem Attribution (Shapley/Banzhaf)
 
-Level 3 assigns synergy-aware credit for ecosystem outcomes across many possible reduced ecosystems, instead of relying on a single baseline $B$. You treat the ecosystem value $W(S)$ as a cooperative-game value function $v(S)$ over sub-libraries $S \subseteq \Pi$, and compute Shapley or Banzhaf values for each policy. This answers: on average across many "possible worlds" (different sub-libraries), how much marginal ecosystem value does each policy contribute, accounting for complementarities and redundancy among policies?
-
-Define the value function:
-
-$$v(S) := W(S) = \mathbb{E}\big[W_L \mid \text{do}(L=S)\big]$$
-
-**Banzhaf value:**
-
-$$\beta(\pi) := \mathbb{E}_{S \subseteq \Pi \setminus \{\pi\}}\big[v(S \cup \{\pi\}) - v(S)\big]$$
+Level 3 assigns credit across sub-ecosystems using cooperative game theory. Define value function $v(X) := W(\sigma_X, G_{S \downarrow X})$.
 
 **Shapley value:**
 
-$$\phi(\pi) := \mathbb{E}_{\text{uniform } \prec}\big[v(\text{Pred}_\prec(\pi) \cup \{\pi\}) - v(\text{Pred}_\prec(\pi))\big]$$
+$$\phi(s) := \frac{1}{|S|!} \sum_{\text{orderings } \prec} \big[v(\text{Pred}_\prec(s) \cup \{s\}) - v(\text{Pred}_\prec(s))\big]$$
 
-where $\text{Pred}_\prec(\pi)$ denotes the set of policies preceding $\pi$ in ordering $\prec$.
+**Banzhaf value:**
+
+$$\beta(s) := \frac{1}{2^{|S|-1}} \sum_{X \subseteq S \setminus \{s\}} \big[v(X \cup \{s\}) - v(X)\big]$$
 
 ---
 
@@ -319,21 +310,21 @@ where $\text{Pred}_\prec(\pi)$ denotes the set of policies preceding $\pi$ in or
 
 | Aspect | Level 1 | Level 2 |
 |--------|---------|---------|
-| Intervention | $\text{do}(L=B)$ fixed | $\text{do}(L=B^+)$ vs $\text{do}(L=B)$ |
-| Equilibrium | Baseline $\sigma_B$ unchanged | Recomputed $\sigma_{B^+}$ |
+| Strategy set | Fixed $X$ | Expanded $X^+$ |
+| Equilibrium | Baseline $\sigma_X$ unchanged | Recomputed $\sigma_{X^+}$ |
 | Interpretation | Partner quality | Ecosystem impact |
 
 ---
 
 ## Solver Sensitivity
 
-All interventional values depend on the solver choice. Make this explicit:
+Equilibrium selection affects all metrics. For solver $\mathcal{S}$:
 
-$$W_{\mathcal{S}}(S) := Y_{\text{eco}}\big(\mathcal{S}(M_S), M_S\big)$$
+$$W_{\mathcal{S}}(X) := W\big(\mathcal{S}(G_{S \downarrow X}), G_{S \downarrow X}\big)$$
 
 Solver sensitivity:
 
-$$\text{Sens}(\mathcal{S}_1, \mathcal{S}_2; S) := W_{\mathcal{S}_1}(S) - W_{\mathcal{S}_2}(S)$$
+$$\text{Sens}(\mathcal{S}_1, \mathcal{S}_2; X) := W_{\mathcal{S}_1}(X) - W_{\mathcal{S}_2}(X)$$
 
 ---
 
