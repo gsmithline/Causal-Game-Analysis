@@ -16,3 +16,4 @@ from rl_training.algorithms import psro  # Policy Space Response Oracles
 from rl_training.algorithms import mappo  # Multi-Agent PPO
 from rl_training.algorithms import fcp  # Fictitious Co-Play
 from rl_training.algorithms import is_mcts  # Information-Set MCTS (search)
+from rl_training.algorithms import ex2psro  # Ex²PSRO (welfare-focused)

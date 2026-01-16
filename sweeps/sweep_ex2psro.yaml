@@ -1,0 +1,116 @@
+# Ex²PSRO Hyperparameter Sweep Configuration
+# Usage:
+#   wandb sweep sweeps/sweep_ex2psro.yaml
+#   wandb agent <sweep_id>
+
+program: scripts/train_ex2psro.py
+method: bayes
+metric:
+  name: equilibrium_welfare
+  goal: maximize
+
+parameters:
+  # Environment
+  num_envs:
+    values: [2048, 4096, 8192]
+
+  # PSRO iterations
+  psro_iterations:
+    values: [15, 20, 30]
+
+  br_training_steps:
+    values: [50000, 100000, 200000]
+
+  max_policies:
+    values: [10, 20, 30]
+
+  # Nash solver
+  nash_solver:
+    values: ["replicator", "fictitious_play"]
+
+  # Ex²PSRO: Welfare settings
+  welfare_fn:
+    values: ["utilitarian", "nash", "egalitarian"]
+
+  exploration_top_k:
+    min: 1
+    max: 10
+    distribution: int_uniform
+
+  exploration_temperature:
+    min: 0.1
+    max: 2.0
+    distribution: uniform
+
+  # Ex²PSRO: KL regularization (key parameters)
+  kl_coef:
+    min: 0.01
+    max: 1.0
+    distribution: log_uniform_values
+    values: [0.01, 0.03, 0.1, 0.3, 1.0]
+
+  kl_target:
+    min: 0.001
+    max: 0.1
+    distribution: log_uniform_values
+    values: [0.001, 0.003, 0.01, 0.03, 0.1]
+
+  use_adaptive_kl:
+    values: [true, false]
+
+  # Ex²PSRO: Imitation learning
+  imitation_epochs:
+    values: [3, 5, 10]
+
+  imitation_lr:
+    min: 1e-4
+    max: 1e-2
+    distribution: log_uniform_values
+    values: [1e-4, 3e-4, 1e-3, 3e-3, 1e-2]
+
+  imitation_data_size:
+    values: [5000, 10000, 20000]
+
+  # General training
+  lr:
+    min: 1e-4
+    max: 3e-3
+    distribution: log_uniform_values
+    values: [1e-4, 3e-4, 1e-3, 3e-3]
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --wandb
+  - --wandb-project
+  - causal-bargain-ex2psro-sweep
+  - --num-envs
+  - ${num_envs}
+  - --psro-iterations
+  - ${psro_iterations}
+  - --br-training-steps
+  - ${br_training_steps}
+  - --max-policies
+  - ${max_policies}
+  - --nash-solver
+  - ${nash_solver}
+  - --welfare-fn
+  - ${welfare_fn}
+  - --exploration-top-k
+  - ${exploration_top_k}
+  - --exploration-temperature
+  - ${exploration_temperature}
+  - --kl-coef
+  - ${kl_coef}
+  - --kl-target
+  - ${kl_target}
+  - ${args}
+  - --imitation-epochs
+  - ${imitation_epochs}
+  - --imitation-lr
+  - ${imitation_lr}
+  - --imitation-data-size
+  - ${imitation_data_size}
+  - --lr
+  - ${lr}

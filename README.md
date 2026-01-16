@@ -381,8 +381,11 @@ python scripts/view_results.py --list
 | **NFSP** | Self-play | `python scripts/train_nfsp_bargain.py` |
 | **Sampled CFR** | Equilibrium | `python scripts/train_sampled_cfr.py` |
 | **PSRO** | Population | `python scripts/train_psro.py` |
+| **Ex²PSRO** | Population + Welfare | `python scripts/train_ex2psro.py` |
 | **MAPPO** | Self-play | `python scripts/train_mappo.py` |
 | **FCP** | Population | `python scripts/train_fcp.py` |
+
+**Ex²PSRO** (Explicit Exploration PSRO) extends PSRO to find high-welfare equilibria by regularizing best response training toward policies that imitate high-welfare behavior.
 
 ### Training with Logging
 

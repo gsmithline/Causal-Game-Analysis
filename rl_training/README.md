@@ -12,6 +12,7 @@ This framework provides multiple state-of-the-art algorithms for training agents
 | **NFSP** | Self-play | Neural Fictitious Self-Play |
 | **Sampled CFR** | Equilibrium | Deep Counterfactual Regret Minimization |
 | **PSRO** | Population | Policy Space Response Oracles |
+| **Ex²PSRO** | Population + Welfare | PSRO with welfare-focused exploration |
 | **MAPPO** | Self-play | Multi-Agent PPO with centralized critic |
 | **FCP** | Population | Fictitious Co-Play |
 | **IS-MCTS** | Search | Information-Set Monte Carlo Tree Search |
@@ -57,6 +58,7 @@ rl_training/
 │   ├── nfsp_bargain/    # Neural Fictitious Self-Play
 │   ├── sampled_cfr/     # Deep CFR
 │   ├── psro/            # Policy Space Response Oracles
+│   ├── ex2psro/         # Ex²PSRO (welfare-focused)
 │   ├── mappo/           # Multi-Agent PPO
 │   ├── fcp/             # Fictitious Co-Play
 │   └── is_mcts/         # Information-Set MCTS
@@ -131,6 +133,32 @@ python scripts/train_psro.py \
 - `--br-training-steps`: Training steps for each best response
 - `--nash-solver`: `replicator` or `fictitious_play`
 - `--max-policies`: Maximum policies per player
+
+### Ex²PSRO (Explicit Exploration PSRO)
+
+Extends PSRO to find high-welfare equilibria by:
+1. Creating exploration policies that imitate high-welfare behavior
+2. Regularizing best response training toward the exploration policy
+3. Biasing equilibrium selection toward prosocial outcomes
+
+Based on "Explicit Exploration for High-Welfare Equilibria in Game-Theoretic Multiagent Reinforcement Learning" (OpenReview 2025).
+
+```bash
+python scripts/train_ex2psro.py \
+    --psro-iterations 20 \
+    --br-training-steps 100000 \
+    --welfare-fn utilitarian \
+    --kl-coef 0.1 \
+    --exploration-top-k 3 \
+    --wandb
+```
+
+**Key hyperparameters:**
+- `--welfare-fn`: Welfare function (`utilitarian`, `nash`, `egalitarian`)
+- `--kl-coef`: KL regularization coefficient toward exploration policy
+- `--exploration-top-k`: Number of top welfare policies to imitate
+- `--use-adaptive-kl`: Automatically adjust KL coefficient
+- `--imitation-epochs`: Epochs to train exploration policy
 
 ### MAPPO (Multi-Agent PPO)
 
