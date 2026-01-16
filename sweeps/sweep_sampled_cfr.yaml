@@ -1,0 +1,35 @@
+# W&B Sweep config for Sampled CFR on bargaining game
+# Usage: wandb sweep sweeps/sweep_sampled_cfr.yaml
+#        wandb agent <sweep_id>
+
+program: scripts/train_sampled_cfr.py
+method: bayes
+metric:
+  name: adv_loss_p0
+  goal: minimize
+
+parameters:
+  lr:
+    distribution: log_uniform_values
+    min: 1e-4
+    max: 1e-2
+
+  iterations:
+    values: [500, 1000, 2000]
+
+  num-envs:
+    values: [1024, 2048, 4096]
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --wandb
+  - --wandb-project
+  - causal-bargain-sweeps
+  - --wandb-tags
+  - cfr
+  - sweep
+  - --cuda-device
+  - "0"
+  - ${args}

@@ -356,6 +356,83 @@ Sens(𝒮₁, 𝒮₂; X) := W_{𝒮₁}(X) − W_{𝒮₂}(X)
 
 ---
 
+## RL Training Framework
+
+This repository also includes a comprehensive RL training framework for the CUDA-accelerated bargaining game environment.
+
+### Quick Start
+
+```bash
+# Install CUDA environment (requires NVIDIA GPU)
+cd cuda_bargain && pip install -e .
+
+# Train a PPO agent
+python scripts/train_ppo_bargain.py --num-envs 4096 --total-timesteps 5000000
+
+# View results
+python scripts/view_results.py --list
+```
+
+### Available Algorithms
+
+| Algorithm | Type | Command |
+|-----------|------|---------|
+| **PPO** | Self-play | `python scripts/train_ppo_bargain.py` |
+| **NFSP** | Self-play | `python scripts/train_nfsp_bargain.py` |
+| **Sampled CFR** | Equilibrium | `python scripts/train_sampled_cfr.py` |
+| **PSRO** | Population | `python scripts/train_psro.py` |
+| **MAPPO** | Self-play | `python scripts/train_mappo.py` |
+| **FCP** | Population | `python scripts/train_fcp.py` |
+
+### Training with Logging
+
+```bash
+# With Weights & Biases
+python scripts/train_ppo_bargain.py \
+    --num-envs 4096 \
+    --total-timesteps 10000000 \
+    --wandb \
+    --wandb-project causal-bargain
+```
+
+### Hyperparameter Sweeps
+
+```bash
+# Using W&B Sweeps
+wandb sweep sweeps/sweep_ppo.yaml
+wandb agent <sweep_id>
+
+# Using Python script
+python scripts/hyperparameter_sweep.py --algorithm ppo --method random --num-trials 50
+```
+
+### Results Management
+
+All training results are automatically saved with:
+- Trained neural network weights
+- Full hyperparameter configuration
+- Training metrics history
+- Final evaluation results
+
+```bash
+# View all runs
+python scripts/view_results.py --list
+
+# Compare algorithms
+python scripts/view_results.py --leaderboard
+
+# Export to CSV
+python scripts/view_results.py --export results.csv
+```
+
+### Documentation
+
+- **[RL Training Guide](rl_training/README.md)** - Full documentation for training algorithms
+- **[Scripts Reference](scripts/README.md)** - Command-line script usage
+- **[Sweeps Guide](sweeps/README.md)** - Hyperparameter optimization
+
+---
+
 ## Development
 
 ```bash

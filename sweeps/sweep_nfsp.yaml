@@ -1,0 +1,34 @@
+# W&B Sweep config for NFSP on bargaining game
+# Usage: wandb sweep sweeps/sweep_nfsp.yaml
+#        wandb agent <sweep_id>
+
+program: scripts/train_nfsp_bargain.py
+method: bayes
+metric:
+  name: avg_loss_p0
+  goal: minimize
+
+parameters:
+  eta:
+    distribution: uniform
+    min: 0.05
+    max: 0.5
+
+  num-envs:
+    values: [1024, 2048, 4096]
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --wandb
+  - --wandb-project
+  - causal-bargain-sweeps
+  - --wandb-tags
+  - nfsp
+  - sweep
+  - --total-timesteps
+  - "2000000"
+  - --cuda-device
+  - "0"
+  - ${args}

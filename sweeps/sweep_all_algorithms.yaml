@@ -1,0 +1,32 @@
+# W&B Sweep config for comparing ALL algorithms
+# This sweep trains different algorithms with their best hyperparameters
+# Usage: wandb sweep sweeps/sweep_all_algorithms.yaml
+#        wandb agent <sweep_id>
+
+program: scripts/run_sweep.py
+method: grid  # Use grid to ensure all algorithms are tested
+metric:
+  name: final_total_reward
+  goal: maximize
+
+parameters:
+  algorithm:
+    values:
+      - ppo
+      - nfsp
+      - sampled_cfr
+      - psro
+      - mappo
+      - fcp
+
+  seed:
+    values: [42, 123, 456, 789, 1337]
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --wandb
+  - --wandb-project
+  - causal-bargain-algorithm-comparison
+  - ${args}

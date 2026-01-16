@@ -1,0 +1,40 @@
+# W&B Sweep config for MAPPO on bargaining game
+# Usage: wandb sweep sweeps/sweep_mappo.yaml
+#        wandb agent <sweep_id>
+
+program: scripts/train_mappo.py
+method: bayes
+metric:
+  name: avg_reward_p0
+  goal: maximize
+
+parameters:
+  lr:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-3
+
+  rollout-steps:
+    values: [32, 64, 128]
+
+  share-actor:
+    values: [true, false]
+
+  num-envs:
+    values: [1024, 2048, 4096]
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --wandb
+  - --wandb-project
+  - causal-bargain-sweeps
+  - --wandb-tags
+  - mappo
+  - sweep
+  - --total-timesteps
+  - "5000000"
+  - --cuda-device
+  - "0"
+  - ${args}

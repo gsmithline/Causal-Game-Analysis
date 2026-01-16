@@ -98,6 +98,110 @@ class TensorBoardLogger:
         self.writer.close()
 
 
+class WandbLogger:
+    """Weights & Biases logging wrapper."""
+
+    def __init__(
+        self,
+        project: str,
+        name: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        group: Optional[str] = None,
+        resume: bool = False,
+        log_interval: int = 1,
+    ):
+        """
+        Initialize Weights & Biases logger.
+
+        Args:
+            project: W&B project name
+            name: Run name (auto-generated if None)
+            config: Configuration dict to log
+            tags: Tags for the run
+            group: Group name for organizing runs
+            resume: Whether to resume a previous run
+            log_interval: Only log every N steps to reduce overhead
+        """
+        try:
+            import wandb
+            self._wandb = wandb
+        except ImportError:
+            raise ImportError(
+                "wandb is not installed. Install with: pip install wandb"
+            )
+
+        self.log_interval = log_interval
+        self._step_count = 0
+
+        # Initialize wandb run
+        self._run = wandb.init(
+            project=project,
+            name=name,
+            config=config,
+            tags=tags,
+            group=group,
+            resume="allow" if resume else None,
+            reinit=True,
+        )
+
+        print(f"[W&B] Initialized run: {self._run.name}")
+        print(f"[W&B] View at: {self._run.url}")
+
+    def log(self, metrics: Dict[str, Any], step: int) -> None:
+        """Log metrics to W&B."""
+        self._step_count = step
+
+        if step % self.log_interval == 0:
+            # Filter to only log numeric values
+            log_metrics = {
+                k: v for k, v in metrics.items()
+                if isinstance(v, (int, float))
+            }
+            self._wandb.log(log_metrics, step=step)
+
+    def log_histogram(self, name: str, values: Any, step: int) -> None:
+        """Log histogram to W&B."""
+        self._wandb.log({name: self._wandb.Histogram(values)}, step=step)
+
+    def log_image(self, name: str, image: Any, step: int) -> None:
+        """Log image to W&B."""
+        self._wandb.log({name: self._wandb.Image(image)}, step=step)
+
+    def log_artifact(self, name: str, path: str, type: str = "model") -> None:
+        """Log artifact (model checkpoint, etc.) to W&B."""
+        artifact = self._wandb.Artifact(name, type=type)
+        artifact.add_file(path)
+        self._run.log_artifact(artifact)
+
+    def save_model(self, model_path: str) -> None:
+        """Save model file to W&B."""
+        self._wandb.save(model_path)
+
+    def info(self, message: str) -> None:
+        """Log info message."""
+        print(f"[W&B] {message}")
+
+    def close(self) -> None:
+        """Finish W&B run."""
+        self._wandb.finish()
+
+    @property
+    def run(self):
+        """Get the underlying wandb run object."""
+        return self._run
+
+    @property
+    def run_id(self) -> str:
+        """Get the run ID."""
+        return self._run.id
+
+    @property
+    def run_name(self) -> str:
+        """Get the run name."""
+        return self._run.name
+
+
 class CompositeLogger:
     """Combine multiple loggers."""
 
@@ -115,3 +219,52 @@ class CompositeLogger:
     def close(self) -> None:
         for logger in self.loggers:
             logger.close()
+
+
+def create_logger(
+    console: bool = True,
+    wandb_project: Optional[str] = None,
+    wandb_name: Optional[str] = None,
+    wandb_config: Optional[Dict[str, Any]] = None,
+    wandb_tags: Optional[List[str]] = None,
+    tensorboard_dir: Optional[str] = None,
+    log_interval: int = 100,
+) -> Logger:
+    """
+    Create a logger with the specified backends.
+
+    Args:
+        console: Enable console logging
+        wandb_project: W&B project name (enables W&B if set)
+        wandb_name: W&B run name
+        wandb_config: Config to log to W&B
+        wandb_tags: Tags for W&B run
+        tensorboard_dir: TensorBoard log directory (enables TB if set)
+        log_interval: Logging interval for console
+
+    Returns:
+        Logger instance (possibly composite)
+    """
+    loggers = []
+
+    if console:
+        loggers.append(ConsoleLogger(log_interval=log_interval))
+
+    if wandb_project:
+        loggers.append(WandbLogger(
+            project=wandb_project,
+            name=wandb_name,
+            config=wandb_config,
+            tags=wandb_tags,
+            log_interval=1,  # W&B handles its own rate limiting
+        ))
+
+    if tensorboard_dir:
+        loggers.append(TensorBoardLogger(log_dir=tensorboard_dir))
+
+    if len(loggers) == 0:
+        return ConsoleLogger(log_interval=log_interval)
+    elif len(loggers) == 1:
+        return loggers[0]
+    else:
+        return CompositeLogger(loggers)

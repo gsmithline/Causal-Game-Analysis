@@ -1,0 +1,45 @@
+# W&B Sweep config for PSRO on bargaining game
+# Usage: wandb sweep sweeps/sweep_psro.yaml
+#        wandb agent <sweep_id>
+
+program: scripts/train_psro.py
+method: bayes
+metric:
+  name: br_p0_avg_reward
+  goal: maximize
+
+parameters:
+  lr:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-3
+
+  br-training-steps:
+    values: [50000, 100000, 200000]
+
+  nash-solver:
+    values: ["replicator", "fictitious_play"]
+
+  max-policies:
+    values: [10, 20, 30]
+
+  num-eval-games:
+    values: [500, 1000, 2000]
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --wandb
+  - --wandb-project
+  - causal-bargain-sweeps
+  - --wandb-tags
+  - psro
+  - sweep
+  - --psro-iterations
+  - "15"
+  - --num-envs
+  - "2048"
+  - --cuda-device
+  - "0"
+  - ${args}

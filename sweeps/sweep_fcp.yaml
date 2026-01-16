@@ -1,0 +1,43 @@
+# W&B Sweep config for FCP on bargaining game
+# Usage: wandb sweep sweeps/sweep_fcp.yaml
+#        wandb agent <sweep_id>
+
+program: scripts/train_fcp.py
+method: bayes
+metric:
+  name: avg_reward_p0
+  goal: maximize
+
+parameters:
+  lr:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-3
+
+  population-size:
+    values: [5, 10, 20]
+
+  snapshot-interval:
+    values: [5000, 10000, 20000]
+
+  prioritized:
+    values: [true, false]
+
+  num-envs:
+    values: [1024, 2048, 4096]
+
+command:
+  - ${env}
+  - python
+  - ${program}
+  - --wandb
+  - --wandb-project
+  - causal-bargain-sweeps
+  - --wandb-tags
+  - fcp
+  - sweep
+  - --total-timesteps
+  - "5000000"
+  - --cuda-device
+  - "0"
+  - ${args}
