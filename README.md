@@ -387,6 +387,27 @@ python scripts/view_results.py --list
 
 **Ex²PSRO** (Explicit Exploration PSRO) extends PSRO to find high-welfare equilibria by regularizing best response training toward policies that imitate high-welfare behavior.
 
+### LLM Negotiators
+
+Evaluate OpenAI models (GPT-5.2, o3, etc.) as negotiators in the bargaining game:
+
+```bash
+# Evaluate LLMs against each other
+python scripts/evaluate_crossplay.py \
+    --policies gpt-5.2-pro o3 gpt-4o \
+    --num-games 100
+
+# Compare LLMs vs trained RL agents
+python scripts/evaluate_crossplay.py \
+    --policies gpt-5.2-pro o3 \
+    --rl-checkpoints checkpoints/ppo/best.pt \
+    --baselines random fair_split \
+    --num-games 500 \
+    --output results/crossplay_matrix.json
+```
+
+Supported models: `gpt-5.2-pro`, `gpt-5.2-thinking`, `gpt-5.2-instant`, `o3`, `o1`, `gpt-4o`, and more.
+
 ### Training with Logging
 
 ```bash

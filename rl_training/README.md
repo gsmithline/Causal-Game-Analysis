@@ -292,6 +292,48 @@ policy_state = manager.load_policy(best["run_id"])
 policy.load_state_dict(policy_state["policy_state_dict"])
 ```
 
+## LLM Policies
+
+Evaluate LLMs as negotiators in the bargaining game:
+
+```python
+from rl_training.llm_policies import OpenAIPolicy
+
+# Create LLM policy
+policy = OpenAIPolicy(
+    model_name="gpt-5.2-pro",  # or "o3", "gpt-4o", etc.
+    temperature=0.7,
+    verbose=True,
+)
+
+# Use like any other policy
+action = policy.get_action(obs, action_mask)
+```
+
+### Supported Models
+
+| Model | Type | Best For |
+|-------|------|----------|
+| `gpt-5.2-pro` | Standard | Best overall capability |
+| `gpt-5.2-thinking` | Reasoning | Complex strategic decisions |
+| `o3` | Reasoning | Deep strategic reasoning |
+| `gpt-4o` | Standard | Fast, previous gen baseline |
+
+### Cross-Play Evaluation
+
+Run full cross-play evaluation between LLMs, RL agents, and baselines:
+
+```bash
+python scripts/evaluate_crossplay.py \
+    --policies gpt-5.2-pro o3 gpt-4o \
+    --rl-checkpoints checkpoints/ppo/best.pt \
+    --baselines random greedy fair_split \
+    --num-games 500 \
+    --output results/crossplay_matrix.json
+```
+
+This generates a payoff matrix suitable for meta-game analysis.
+
 ## Baselines
 
 Simple baseline policies for comparison:
