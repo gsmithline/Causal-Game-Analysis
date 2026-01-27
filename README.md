@@ -1,6 +1,6 @@
-# Causal Meta-Game Analysis
+# Iterative Meta-Game Analysis
 
-A framework for analyzing multi-agent systems using Structural Causal Models (SCM) and do-calculus. This framework provides rigorous causal semantics for evaluating policies in meta-games across three levels of analysis.
+A framework for empirical game-theoretic analysis (EGTA) of multi-agent systems. This framework provides rigorous evaluation of policies in meta-games across three levels of analysis, with bootstrap uncertainty quantification.
 
 ## Installation
 
@@ -33,17 +33,23 @@ from causal_game_analysis import (
     shapley_value,
 )
 
-# Create or load cross-play data
-# Format: DataFrame with columns (policy_i, policy_j, outcome)
+# Create or load bargaining data
+# Format: DataFrame with columns for both players' payoffs, BATNAs, and EF1
 df = pd.DataFrame([
-    {"policy_i": "alice", "policy_j": "bob", "outcome": 0.8},
-    {"policy_i": "alice", "policy_j": "carol", "outcome": 0.6},
-    {"policy_i": "bob", "policy_j": "alice", "outcome": 0.7},
-    # ... more cross-play results
+    {"policy_i": "alice", "policy_j": "bob",
+     "payoff_i": 80, "payoff_j": 75,
+     "batna_i": 50, "batna_j": 45, "ef1": 1},
+    {"policy_i": "alice", "policy_j": "carol",
+     "payoff_i": 60, "payoff_j": 70,
+     "batna_i": 50, "batna_j": 40, "ef1": 1},
+    {"policy_i": "bob", "policy_j": "alice",
+     "payoff_i": 75, "payoff_j": 80,
+     "batna_i": 45, "batna_j": 50, "ef1": 1},
+    # ... more bargaining instances
 ])
 
-# Build meta-game from raw data
-game = MetaGame.from_dataframe(df)
+# Build meta-game from raw data (uses payoff_i for payoff matrix)
+game = MetaGame.from_dataframe(df, outcome_col="payoff_i")
 
 # Compute equilibrium
 sigma = game.solve("mene")  # Max-entropy Nash equilibrium
@@ -105,21 +111,50 @@ from causal_game_analysis import banzhaf_value
 banzhaf = banzhaf_value(game.policies, value_fn)
 ```
 
-### Bootstrap for Uncertainty Quantification
+### Bootstrap for Full Analysis
 
 ```python
-# Bootstrap resampling for confidence intervals
-bootstrap = Bootstrap(df, n_samples=1000, seed=42)
+# Bargaining data format: one row per negotiation instance
+df = pd.DataFrame([
+    {"policy_i": "gpt4", "policy_j": "claude",
+     "payoff_i": 85, "payoff_j": 90,
+     "batna_i": 50, "batna_j": 55, "ef1": 1},
+    {"policy_i": "gpt4", "policy_j": "llama",
+     "payoff_i": 70, "payoff_j": 65,
+     "batna_i": 50, "batna_j": 45, "ef1": 0},
+    # ... more bargaining instances
+])
 
-# Run any analysis on bootstrap samples
-def analyze(g):
-    return level1_analysis(g, ["alice", "bob"], "carol")["uniform_avg"]
+# Bootstrap with full L1/L2/L3 analysis
+bootstrap = Bootstrap(
+    df, n_samples=1000, seed=42,
+    payoff_i_col="payoff_i", payoff_j_col="payoff_j",
+    batna_i_col="batna_i", batna_j_col="batna_j",
+    ef1_col="ef1",
+)
 
-results = bootstrap.run(analyze, progress=True)
+# Run complete analysis on each bootstrap sample
+results = bootstrap.run_full_analysis(
+    include_l3=True,
+    l3_method="both",  # Shapley and Banzhaf
+    progress=True,
+)
 
-# Get confidence interval
-lower, median, upper = Bootstrap.confidence_interval(results, alpha=0.05)
-print(f"95% CI: [{lower:.3f}, {upper:.3f}]")
+# Each result contains: l1, l2, l3, matrices, full_game
+# Access per-agent leave-one-out metrics
+for agent in bootstrap.policies:
+    l1 = results[0]["l1"][agent]
+    l2 = results[0]["l2"][agent]
+    print(f"{agent}: L1 lift={l1['uniform_avg']:.3f}, L2 delta_eco={l2['delta_eco']['uw']:.3f}")
+
+# Welfare metrics (UW, NW, NW+) computed at equilibrium
+print("Full game welfare:", results[0]["full_game"]["welfare"])
+print("Full game EF1:", results[0]["full_game"]["ef1"])
+
+# Get confidence intervals across bootstrap samples
+l1_lifts = [r["l1"]["gpt4"]["uniform_avg"] for r in results]
+lower, median, upper = Bootstrap.confidence_interval(l1_lifts, alpha=0.05)
+print(f"95% CI for GPT4 L1 lift: [{lower:.3f}, {upper:.3f}]")
 ```
 
 ### EF1 Fairness Analysis (for Bargaining)
@@ -127,24 +162,21 @@ print(f"95% CI: [{lower:.3f}, {upper:.3f}]")
 ```python
 from causal_game_analysis import ef1_frequency_matrix, aggregate_ef1_between_groups
 
-# If your data includes EF1 indicator column
-df_with_ef1 = pd.DataFrame([
-    {"policy_i": "gpt4", "policy_j": "claude", "outcome": 0.8, "ef1": 1},
-    {"policy_i": "gpt4", "policy_j": "llama", "outcome": 0.6, "ef1": 0},
-    # ...
-])
+# EF1 frequency matrix from bargaining data
+ef1_matrix, policies = ef1_frequency_matrix(df)
 
-# EF1 frequency matrix
-ef1_matrix, policies = ef1_frequency_matrix(df_with_ef1)
-
-# Compare EF1 between groups
+# Compare EF1 between policy groups (e.g., LLM providers)
 ef1_stats = aggregate_ef1_between_groups(
-    df_with_ef1,
+    df,
     group_a=["gpt4", "claude"],
     group_b=["llama", "mistral"]
 )
 print("EF1 frequency (Group A vs B):", ef1_stats["a_vs_b"])
 print("EF1 frequency (within Group A):", ef1_stats["within_a"])
+
+# EF1 is also computed at equilibrium in run_full_analysis()
+results = bootstrap.run_full_analysis(include_l3=False)
+print("EF1 at equilibrium:", results[0]["full_game"]["ef1"])
 ```
 
 ### Direct Matrix Construction
@@ -170,7 +202,16 @@ game = MetaGame(
 | Class | Description |
 |-------|-------------|
 | `MetaGame` | Empirical meta-game representation with payoff matrix |
-| `Bootstrap` | Bootstrap resampling for uncertainty quantification |
+| `Bootstrap` | Bootstrap resampling with full L1/L2/L3 analysis |
+
+### Bootstrap Methods
+
+| Method | Description |
+|--------|-------------|
+| `run_full_analysis()` | Run complete L1/L2/L3 analysis on each bootstrap sample |
+| `run()` | Run custom analysis function on each bootstrap sample |
+| `sample()` | Generate one bootstrap sample (stratified by policy pair) |
+| `confidence_interval()` | Compute percentile CI from bootstrap distribution |
 
 ### Analysis Functions
 
@@ -180,6 +221,90 @@ game = MetaGame(
 | `ecosystem_lift()` | 2 | Ecosystem Lift (with re-equilibration) |
 | `shapley_value()` | 3 | Shapley attribution values |
 | `banzhaf_value()` | 3 | Banzhaf attribution values |
+
+### Welfare Metrics
+
+| Metric | Description |
+|--------|-------------|
+| UW | Utilitarian Welfare (sum of payoffs) |
+| NW | Nash Welfare (geometric mean of payoffs) |
+| NW+ | Nash Welfare on advantages (payoff - BATNA) |
+
+---
+
+## Metrics Reference (from LLM Meta-Game Paper)
+
+### Welfare Functions
+
+**Utilitarian Welfare (UW)**
+
+The sum of players' payoffs:
+
+```
+UW := u₁ + u₂
+```
+
+Maximizing UW finds the most efficient outcome in terms of total value created.
+
+**Nash Welfare (NW)**
+
+The geometric mean of players' payoffs:
+
+```
+NW := (u₁ · u₂)^(1/2)
+```
+
+Nash welfare balances efficiency and fairness by giving weight to both players' outcomes. It is maximized when gains are distributed more equally.
+
+**Nash Welfare on Advantages (NW+)**
+
+Nash welfare computed on *advantages* (surplus above BATNA):
+
+```
+NW+ := (u₁⁺ · u₂⁺)^(1/2)
+
+where u_i⁺ = max{0, uᵢ − bᵢ}
+```
+
+Here `bᵢ` is player i's BATNA (Best Alternative to Negotiated Agreement). NW+ measures the geometric mean of gains *above* each player's outside option, accounting for the possibility that a player may receive less than their BATNA.
+
+### Fairness Metric
+
+**EF1 (Envy-Free up to One Item)**
+
+An allocation is **envy-free** if each player values their own bundle at least as much as the other's. Since envy-free allocations may not exist, we use EF1 as a relaxation:
+
+An allocation is **EF1** if, for each player i, there exists an item in the other player's bundle which, if removed, would eliminate envy:
+
+```
+vᵢ · a₋ᵢ − vᵢ · aᵢ ≤ max_{k: a₋ᵢ,ₖ > 0} vᵢ,ₖ    for i ∈ {1, 2}
+```
+
+The **EF1 frequency** is the fraction of bargaining instances ending in ACCEPT that produce EF1 allocations.
+
+### Individual Effectiveness
+
+**Regret**
+
+For a symmetric two-player game, the regret of strategy π at Nash equilibrium σ* is:
+
+```
+Regret(π) := u(σ*) − u(π, σ*₋ᵢ)
+```
+
+This measures how much worse strategy π performs compared to the equilibrium value when facing equilibrium opponents. Lower regret indicates a strategy closer to best-responding.
+
+### Equilibrium Selection
+
+**Maximum Entropy Nash Equilibrium (MENE)**
+
+When multiple Nash equilibria exist, we select the one maximizing Shannon entropy:
+
+```
+σ* = argmax_{σ ∈ NE(G)} [−σ · ln(σ)]
+```
+
+This provides a unique, well-defined equilibrium that spreads probability mass across strategies when indifferent, avoiding arbitrary selection among equivalent equilibria.
 
 ### Fairness Metrics
 
@@ -199,6 +324,25 @@ game = MetaGame(
 ---
 
 ## Framework Overview
+
+### Notation Reference
+
+| Symbol | Description |
+|--------|-------------|
+| G = (N, (Sᵢ), (uᵢ)) | Normal-form game with players N, strategy sets Sᵢ, utilities uᵢ |
+| Ĝ | Empirical game (payoffs estimated via simulation/data) |
+| S | Full strategy universe (all available strategies/policies) |
+| X ⊆ S | Baseline restricted strategy set (library) |
+| sⱼ ∈ S ∖ X | Candidate strategy not yet in X |
+| sᵢ ∈ X | Incumbent strategy in X |
+| S↓X | Restriction operator (per-player: Xᵢ ⊆ Sᵢ) |
+| Ĝ_{S↓X} | Restricted empirical game induced by X |
+| σ ∈ Δ(X) | Mixed strategy profile over X |
+| σ_X | Equilibrium mixture computed on Ĝ_{S↓X} |
+| S | Meta-strategy solver (MSS): Ĝ_{S↓X} ↦ σ_X |
+| BRᵢ(σ₋ᵢ) | Best-response correspondence for player i |
+| ρᵢᴳ(σ) | Regret of player i at profile σ (in game G) |
+| Φ | A metric functional, Φ(Ĝ_{S↓X}, σ_X) (Regret, Utility, NW, UW, EF1, etc.) |
 
 ### Game-Theoretic Foundations
 
@@ -221,6 +365,31 @@ Following empirical game-theoretic analysis, we consider restricted strategy set
 In our framework:
 - **X** represents the **baseline library** of policies
 - **X⁺ = X ∪ {sⱼ}** represents the library after adding candidate sⱼ
+
+### EGTA Pipeline: Restrict → Solve → Evaluate
+
+1. **Restricted-game construction:**
+   ```
+   Ĝ_{S↓X} := g(X)
+   ```
+   where g(·) denotes assembling/estimating the restricted payoff table on X.
+
+2. **Solve for an equilibrium/solution mixture:**
+   ```
+   σ_X := S(Ĝ_{S↓X})
+   ```
+
+3. **Restricted game value functional:**
+   ```
+   W(X) := Φ(Ĝ_{S↓X}, σ_X)
+   ```
+   an outcome induced by the solution concept and the game (e.g., welfare at equilibrium, fairness at equilibrium, exploitability).
+
+4. **Make solver dependence explicit:**
+   ```
+   W_S(X) := Φ(Ĝ_{S↓X}, S(Ĝ_{S↓X}))
+   ```
+   Define a solution concept S (MENE, affinity entropy, etc.).
 
 ### Equilibrium and Regret
 
@@ -248,21 +417,31 @@ MRCP(G_{S↓X}) = argmin_{σ ∈ Δ(X)} Σᵢ∈N ρᴳᵢ(σ)
 
 ## Three Levels of Analysis
 
-### Level 1: Interaction-Level (No Re-Equilibration)
+### Level 1: Direct Interaction Effect (No Re-Equilibration)
 
 Level 1 measures direct interaction effects without ecosystem adaptation. Fix a baseline library X and its equilibrium σ_X. For each incumbent strategy sᵢ ∈ X, compare outcomes against candidate sⱼ versus typical equilibrium partners.
 
-**Baseline expected utility** for incumbent sᵢ ∈ X:
+**Pairwise outcome** for strategy pair (sᵢ, s₋ᵢ):
 
 ```
-U_X(sᵢ) := Σ_{s ∈ X} σ_X(s) · u(sᵢ, s)
+m(sᵢ, s₋ᵢ) := E[Z | (sᵢ, s₋ᵢ)]
 ```
 
-**Partner Lift** (strategy-specific):
+This is an empirical average for some specified metric Z (e.g., payoff, welfare, fairness).
+
+**Baseline equilibrium interaction value** for incumbent sᵢ ∈ X:
 
 ```
-PL₁(sᵢ; sⱼ | X) := u(sᵢ, sⱼ) − U_X(sᵢ)
+V_X(sᵢ) := m(sᵢ, σ_{X₋ᵢ}) := E_{s₋ᵢ ~ σ_{X₋ᵢ}}[m(sᵢ, s₋ᵢ)]
 ```
+
+**Partner Lift** (direct, no adaptation):
+
+```
+PL₁(sᵢ; sⱼ | X) := m(sᵢ, sⱼ) − V_X(sᵢ)
+```
+
+Interpretation: If incumbent sᵢ faces sⱼ instead of the equilibrium from Ĝ_{S↓X}, how much does the expected outcome change?
 
 **Aggregations:**
 
@@ -275,68 +454,82 @@ PL₁(sᵢ; sⱼ | X) := u(sᵢ, sⱼ) − U_X(sᵢ)
 
 ---
 
-### Level 2: Ecosystem-Level (Re-Equilibration)
+### Level 2: Restricted Game Change + Re-Equilibration
 
-Level 2 measures ecosystem effects with strategic adaptation. Expand the strategy set to X⁺ = X ∪ {sⱼ}, compute new equilibrium σ_{X⁺}, and compare welfare.
+Level 2 measures ecosystem effects with strategic adaptation by adding sⱼ to the restricted game and re-solving.
 
-**Welfare function** over profile σ in game G:
-
-```
-W(σ, G) = f((uᵢ(σ))_{i ∈ N})
-```
-
-Common choices: utilitarian (Σᵢ uᵢ), Nash product (Πᵢ uᵢ), egalitarian (minᵢ uᵢ).
-
-**Ecosystem lift:**
+**Expanded restricted game:**
 
 ```
-Δ_eco(sⱼ | X) := W(σ_{X⁺}, G_{S↓X⁺}) − W(σ_X, G_{S↓X})
+X⁺ := X ∪ {sⱼ}
+```
+
+Re-estimate/assemble Ĝ_{S↓X⁺}, re-solve for σ_{X⁺}, then evaluate W(X⁺).
+
+**Restricted game value functional:**
+
+```
+W(X) := Φ(Ĝ_{S↓X}, σ_X)
+```
+
+where Φ is a metric functional (welfare, fairness, etc.) evaluated at equilibrium.
+
+**Impact of adding sⱼ to X (ecosystem lift):**
+
+```
+ΔW(sⱼ | X) := W(X⁺) − W(X)
 ```
 
 **Incumbent value shift** under re-equilibration:
 
 ```
-Δ_inc(sᵢ; sⱼ | X) := U_{X⁺}(sᵢ) − U_X(sᵢ)
+Δ_inc(sᵢ; sⱼ | X) := V_{X⁺}(sᵢ) − V_X(sᵢ)
 ```
 
 **Equilibrium diagnostics:**
 
-| Metric | Description |
-|--------|-------------|
-| Equilibrium shift | ‖σ_{X⁺} − σ_X‖₁ (L1 norm, restricted to X) |
-| Entry mass | σ_{X⁺}(sⱼ) |
+| Metric | Formula |
+|--------|---------|
+| Equilibrium shift | Δσ(sⱼ \| X) := ‖σ_{X⁺} − σ_X‖₁ |
+| Entry mass | EntryMass(sⱼ \| X) := σ_{X⁺}(sⱼ) |
 
 ---
 
-### Level 3: Ecosystem Attribution (Shapley/Banzhaf)
+### Level 3: Synergy-Aware Credit Attribution
 
-Level 3 assigns credit across sub-ecosystems using cooperative game theory. Define value function:
+Level 3 assigns credit across sub-ecosystems using cooperative game theory, averaging over many possible restricted games.
 
-```
-v(X) := W(σ_X, G_{S↓X})
-```
-
-**Shapley value:**
+**Value function** over sub-libraries X ⊆ S:
 
 ```
-φ(s) := (1/|S|!) Σ_{orderings ≺} [v(Pred_≺(s) ∪ {s}) − v(Pred_≺(s))]
+v(X) := W(X) = Φ(Ĝ_{S↓X}, σ_X), where σ_X = S(Ĝ_{S↓X})
 ```
 
 **Banzhaf value:**
 
 ```
-β(s) := (1/2^{|S|−1}) Σ_{X ⊆ S∖{s}} [v(X ∪ {s}) − v(X)]
+β(s) := E_{X ⊆ S∖{s}}[v(X ∪ {s}) − v(X)]
+     = (1/2^{|S|−1}) Σ_{X ⊆ S∖{s}} [v(X ∪ {s}) − v(X)]
 ```
+
+**Shapley value:**
+
+```
+φ(s) := E_≺[v(Pred_≺(s) ∪ {s}) − v(Pred_≺(s))]
+     = (1/|S|!) Σ_≺ [v(Pred_≺(s) ∪ {s}) − v(Pred_≺(s))]
+```
+
+where ≺ is a uniform random ordering of S, and Pred_≺(s) denotes the set of strategies preceding s under ≺.
 
 ---
 
 ## Key Distinctions
 
-| Aspect | Level 1 | Level 2 |
-|--------|---------|---------|
-| Strategy set | Fixed X | Expanded X⁺ |
-| Equilibrium | Baseline σ_X unchanged | Recomputed σ_{X⁺} |
-| Interpretation | Partner quality | Ecosystem impact |
+| Aspect | Level 1 | Level 2 | Level 3 |
+|--------|---------|---------|---------|
+| Strategy set | Fixed X | Expanded X⁺ | All subsets of S |
+| Equilibrium | σ_X held fixed | Recomputed σ_{X⁺} | Recomputed per subset |
+| Interpretation | Partner quality (direct effect) | Restricted game impact (with adaptation) | Synergy-aware attribution |
 
 ---
 
@@ -353,107 +546,6 @@ Solver sensitivity:
 ```
 Sens(𝒮₁, 𝒮₂; X) := W_{𝒮₁}(X) − W_{𝒮₂}(X)
 ```
-
----
-
-## RL Training Framework
-
-This repository also includes a comprehensive RL training framework for the CUDA-accelerated bargaining game environment.
-
-### Quick Start
-
-```bash
-# Install CUDA environment (requires NVIDIA GPU)
-cd cuda_bargain && pip install -e .
-
-# Train a PPO agent
-python scripts/train_ppo_bargain.py --num-envs 4096 --total-timesteps 5000000
-
-# View results
-python scripts/view_results.py --list
-```
-
-### Available Algorithms
-
-| Algorithm | Type | Command |
-|-----------|------|---------|
-| **PPO** | Self-play | `python scripts/train_ppo_bargain.py` |
-| **NFSP** | Self-play | `python scripts/train_nfsp_bargain.py` |
-| **Sampled CFR** | Equilibrium | `python scripts/train_sampled_cfr.py` |
-| **PSRO** | Population | `python scripts/train_psro.py` |
-| **Ex²PSRO** | Population + Welfare | `python scripts/train_ex2psro.py` |
-| **MAPPO** | Self-play | `python scripts/train_mappo.py` |
-| **FCP** | Population | `python scripts/train_fcp.py` |
-
-**Ex²PSRO** (Explicit Exploration PSRO) extends PSRO to find high-welfare equilibria by regularizing best response training toward policies that imitate high-welfare behavior.
-
-### LLM Negotiators
-
-Evaluate OpenAI models (GPT-5.2, o3, etc.) as negotiators in the bargaining game:
-
-```bash
-# Evaluate LLMs against each other
-python scripts/evaluate_crossplay.py \
-    --policies gpt-5.2-pro o3 gpt-4o \
-    --num-games 100
-
-# Compare LLMs vs trained RL agents
-python scripts/evaluate_crossplay.py \
-    --policies gpt-5.2-pro o3 \
-    --rl-checkpoints checkpoints/ppo/best.pt \
-    --baselines random fair_split \
-    --num-games 500 \
-    --output results/crossplay_matrix.json
-```
-
-Supported models: `gpt-5.2-pro`, `gpt-5.2-thinking`, `gpt-5.2-instant`, `o3`, `o1`, `gpt-4o`, and more.
-
-### Training with Logging
-
-```bash
-# With Weights & Biases
-python scripts/train_ppo_bargain.py \
-    --num-envs 4096 \
-    --total-timesteps 10000000 \
-    --wandb \
-    --wandb-project causal-bargain
-```
-
-### Hyperparameter Sweeps
-
-```bash
-# Using W&B Sweeps
-wandb sweep sweeps/sweep_ppo.yaml
-wandb agent <sweep_id>
-
-# Using Python script
-python scripts/hyperparameter_sweep.py --algorithm ppo --method random --num-trials 50
-```
-
-### Results Management
-
-All training results are automatically saved with:
-- Trained neural network weights
-- Full hyperparameter configuration
-- Training metrics history
-- Final evaluation results
-
-```bash
-# View all runs
-python scripts/view_results.py --list
-
-# Compare algorithms
-python scripts/view_results.py --leaderboard
-
-# Export to CSV
-python scripts/view_results.py --export results.csv
-```
-
-### Documentation
-
-- **[RL Training Guide](rl_training/README.md)** - Full documentation for training algorithms
-- **[Scripts Reference](scripts/README.md)** - Command-line script usage
-- **[Sweeps Guide](sweeps/README.md)** - Hyperparameter optimization
 
 ---
 
