@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 import cvxpy as cp
 import numpy as np
 
-from causal_game_analysis.solvers.base import register_solver
-from causal_game_analysis.utils import simplex_projection
+from iterative_game_analysis.solvers.base import register_solver
+from iterative_game_analysis.utils import simplex_projection
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray

@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Callable
 import numpy as np
 import pandas as pd
 
-from causal_game_analysis.metagame import MetaGame
-from causal_game_analysis.utils import l1_norm
+from iterative_game_analysis.metagame import MetaGame
+from iterative_game_analysis.utils import l1_norm
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray

@@ -1,6 +1,6 @@
 """Test script for the causal meta-game framework."""
 
-from causal_game_analysis import MetaGame, Bootstrap, level1_analysis, ecosystem_lift
+from iterative_game_analysis import MetaGame, Bootstrap, level1_analysis, ecosystem_lift
 import pandas as pd
 import numpy as np
 

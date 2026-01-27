@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from causal_game_analysis.bootstrap import Bootstrap
-from causal_game_analysis.metagame import MetaGame
+from iterative_game_analysis.bootstrap import Bootstrap
+from iterative_game_analysis.metagame import MetaGame
 
 
 def create_synthetic_bargaining_data(

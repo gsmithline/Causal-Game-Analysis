@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from causal_game_analysis.metagame import MetaGame
-from causal_game_analysis.utils import compute_regret
+from iterative_game_analysis.metagame import MetaGame
+from iterative_game_analysis.utils import compute_regret
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -407,7 +407,7 @@ class Bootstrap(Generic[T]):
         Returns:
             Dict with Shapley/Banzhaf values for each welfare function.
         """
-        from causal_game_analysis.analysis import (
+        from iterative_game_analysis.analysis import (
             shapley_value,
             banzhaf_value,
         )
@@ -474,11 +474,11 @@ class Bootstrap(Generic[T]):
         This is the core method that performs L1, L2, L3, and EF1 analysis
         for one resampled meta-game.
         """
-        from causal_game_analysis.analysis import (
+        from iterative_game_analysis.analysis import (
             shapley_value,
             banzhaf_value,
         )
-        from causal_game_analysis.utils import l1_norm
+        from iterative_game_analysis.utils import l1_norm
 
         # 1. Resample and build all matrices
         resampled_df = self.sample()

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-from causal_game_analysis.solvers import get_solver
+from iterative_game_analysis.solvers import get_solver
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray

@@ -10,7 +10,7 @@ and do-calculus, with three levels of analysis:
 Example usage:
 
     import pandas as pd
-    from causal_game_analysis import MetaGame, Bootstrap, level1_analysis, ecosystem_lift
+    from iterative_game_analysis import MetaGame, Bootstrap, level1_analysis, ecosystem_lift
 
     # Load cross-play data
     df = pd.read_csv("crossplay_results.csv")
@@ -31,9 +31,9 @@ Example usage:
 
 __version__ = "0.1.0"
 
-from causal_game_analysis.metagame import MetaGame
-from causal_game_analysis.bootstrap import Bootstrap
-from causal_game_analysis.analysis import (
+from iterative_game_analysis.metagame import MetaGame
+from iterative_game_analysis.bootstrap import Bootstrap
+from iterative_game_analysis.analysis import (
     # Level 1
     baseline_value,
     partner_lift,
@@ -49,7 +49,7 @@ from causal_game_analysis.analysis import (
     ef1_frequency_matrix,
     aggregate_ef1_between_groups,
 )
-from causal_game_analysis.solvers import Solver, get_solver, MENESolver
+from iterative_game_analysis.solvers import Solver, get_solver, MENESolver
 
 __all__ = [
     # Core classes

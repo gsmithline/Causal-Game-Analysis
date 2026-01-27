@@ -25,7 +25,7 @@ uv sync --extra dev
 ```python
 import pandas as pd
 import numpy as np
-from causal_game_analysis import (
+from iterative_game_analysis import (
     MetaGame,
     Bootstrap,
     level1_analysis,
@@ -107,7 +107,7 @@ shapley = shapley_value(game.policies, value_fn)
 print("Shapley values:", shapley)
 
 # Or Banzhaf values
-from causal_game_analysis import banzhaf_value
+from iterative_game_analysis import banzhaf_value
 banzhaf = banzhaf_value(game.policies, value_fn)
 ```
 
@@ -160,7 +160,7 @@ print(f"95% CI for GPT4 L1 lift: [{lower:.3f}, {upper:.3f}]")
 ### EF1 Fairness Analysis (for Bargaining)
 
 ```python
-from causal_game_analysis import ef1_frequency_matrix, aggregate_ef1_between_groups
+from iterative_game_analysis import ef1_frequency_matrix, aggregate_ef1_between_groups
 
 # EF1 frequency matrix from bargaining data
 ef1_matrix, policies = ef1_frequency_matrix(df)
@@ -556,7 +556,7 @@ Sens(𝒮₁, 𝒮₂; X) := W_{𝒮₁}(X) − W_{𝒮₂}(X)
 uv run pytest
 
 # Run tests with coverage
-uv run pytest --cov=src/causal_game_analysis
+uv run pytest --cov=src/iterative_game_analysis
 
 # Lint code
 uv run ruff check .
