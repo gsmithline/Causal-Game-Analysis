@@ -50,6 +50,14 @@ from iterative_game_analysis.analysis import (
     aggregate_ef1_between_groups,
 )
 from iterative_game_analysis.solvers import Solver, get_solver, MENESolver
+from iterative_game_analysis.full_analysis import (
+    load_crossplay_to_dataframe,
+    run_full_pipeline,
+    aggregate_results,
+    save_results,
+    load_results,
+    print_results,
+)
 
 __all__ = [
     # Core classes
@@ -73,4 +81,11 @@ __all__ = [
     "ef1_frequency",
     "ef1_frequency_matrix",
     "aggregate_ef1_between_groups",
+    # Full analysis pipeline
+    "load_crossplay_to_dataframe",
+    "run_full_pipeline",
+    "aggregate_results",
+    "save_results",
+    "load_results",
+    "print_results",
 ]

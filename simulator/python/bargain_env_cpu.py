@@ -153,13 +153,13 @@ class BargainEnvCPU:
         ).astype(np.float32)
 
         # Generate random outside options
-        # Outside option is typically less than max possible value
+        # Match CUDA: outside option is 1 to max_possible_value
         for i in range(NUM_PLAYERS):
             max_vals = np.sum(self._player_values[:, i, :] * ITEM_QUANTITIES, axis=1)
             self._max_possible_values[:, i] = max_vals
-            # Outside option between 10% and 50% of max possible
-            self._outside_options[:, i] = self._rng.uniform(
-                0.1 * max_vals, 0.5 * max_vals
+            # Outside option: 1 to max_possible_value (matching CUDA implementation)
+            self._outside_options[:, i] = (
+                self._rng.integers(1, max_vals.astype(np.int64) + 1)
             ).astype(np.float32)
 
         # Reset game state
@@ -185,12 +185,12 @@ class BargainEnvCPU:
             size=(n_reset, NUM_PLAYERS, NUM_ITEM_TYPES)
         ).astype(np.float32)
 
-        # Generate new outside options
+        # Generate new outside options (matching CUDA: 1 to max_possible_value)
         for i in range(NUM_PLAYERS):
             max_vals = np.sum(self._player_values[mask, i, :] * ITEM_QUANTITIES, axis=1)
             self._max_possible_values[mask, i] = max_vals
-            self._outside_options[mask, i] = self._rng.uniform(
-                0.1 * max_vals, 0.5 * max_vals
+            self._outside_options[mask, i] = (
+                self._rng.integers(1, max_vals.astype(np.int64) + 1)
             ).astype(np.float32)
 
         # Reset game state for these environments
@@ -219,8 +219,14 @@ class BargainEnvCPU:
                 self._observations[env_idx, 3] = self._outside_options[env_idx, player] / max_val
 
             # Current offer
+            # Match CUDA: P1 sees what they KEEP, P2 sees what they RECEIVE
             if self._offer_valid[env_idx]:
-                self._observations[env_idx, 4:7] = self._current_offer[env_idx] / ITEM_QUANTITIES
+                if player == 1:
+                    # P2 sees items offered to them
+                    self._observations[env_idx, 4:7] = self._current_offer[env_idx] / ITEM_QUANTITIES
+                else:
+                    # P1 sees items they would keep (inverted)
+                    self._observations[env_idx, 4:7] = (ITEM_QUANTITIES - self._current_offer[env_idx]) / ITEM_QUANTITIES
             else:
                 self._observations[env_idx, 4:7] = -1.0
 
@@ -345,30 +351,30 @@ class BargainEnvCPU:
         self._outcome[env_idx] = OUTCOME_ACCEPT
 
         # Calculate rewards based on item allocation
-        offer = self._current_offer[env_idx]  # Items offered to the other player
+        # Match CUDA: offer ALWAYS represents items going to P2
+        # P1 keeps the remainder, regardless of who made the offer
+        offer = self._current_offer[env_idx]
 
-        # Determine who made the offer (the previous player)
-        current_player = self._current_player[env_idx]
-        offering_player = 1 - current_player
-        accepting_player = current_player
+        # P1 (player 0) gets: ITEM_QUANTITIES - offer
+        # P2 (player 1) gets: offer
+        p1_items = ITEM_QUANTITIES - offer
+        p2_items = offer
 
-        # Offering player keeps: ITEM_QUANTITIES - offer
-        # Accepting player gets: offer
-        items_to_offerer = ITEM_QUANTITIES - offer
-        items_to_accepter = offer
+        # Calculate P1 reward
+        p1_value = np.sum(self._player_values[env_idx, 0] * p1_items)
+        max_val_p1 = self._max_possible_values[env_idx, 0]
+        if max_val_p1 > 0:
+            self._rewards[env_idx, 0] = p1_value / max_val_p1
+        else:
+            self._rewards[env_idx, 0] = 0.0
 
-        for p in range(NUM_PLAYERS):
-            if p == offering_player:
-                items = items_to_offerer
-            else:
-                items = items_to_accepter
-
-            value = np.sum(self._player_values[env_idx, p] * items)
-            max_val = self._max_possible_values[env_idx, p]
-            if max_val > 0:
-                self._rewards[env_idx, p] = value / max_val
-            else:
-                self._rewards[env_idx, p] = 0.0
+        # Calculate P2 reward
+        p2_value = np.sum(self._player_values[env_idx, 1] * p2_items)
+        max_val_p2 = self._max_possible_values[env_idx, 1]
+        if max_val_p2 > 0:
+            self._rewards[env_idx, 1] = p2_value / max_val_p2
+        else:
+            self._rewards[env_idx, 1] = 0.0
 
     def _handle_counteroffer(self, env_idx: int, action: int):
         """Handle counteroffer action."""

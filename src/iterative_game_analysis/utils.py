@@ -38,16 +38,22 @@ def compute_regret(
 ) -> tuple[NDArray[np.floating], float, NDArray[np.floating]]:
     """Compute regret for a strategy against a payoff matrix.
 
+    At Nash equilibrium:
+    - nash_value >= expected_utils[i] for all i
+    - Strategies in support have regret = 0 (they tie)
+    - Strategies outside support have regret > 0 (they're worse)
+
     Args:
         strategy: Mixed strategy (probability distribution over actions).
         payoff_matrix: Payoff matrix where M[i,j] is payoff for action i vs opponent j.
 
     Returns:
         Tuple of (regret per action, Nash value, expected utility per action).
+        Regret[i] = nash_value - expected_utils[i] >= 0 at equilibrium.
     """
     expected_utils = payoff_matrix @ strategy
     nash_value = float(strategy @ payoff_matrix @ strategy)
-    regret = expected_utils - nash_value
+    regret = nash_value - expected_utils
     return regret, nash_value, expected_utils
 
 

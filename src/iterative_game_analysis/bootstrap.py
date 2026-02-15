@@ -326,7 +326,7 @@ class Bootstrap(Generic[T]):
         Returns:
             Dict with 'uw', 'nw', 'nw_plus' keys.
         """
-        # Handle NaN by treating as 0 for matrix multiplication
+        # payoff/nw/nw_plus have no NaN in practice, so nan_to_num is harmless
         payoff = np.nan_to_num(matrices["payoff"], nan=0.0)
         nw = np.nan_to_num(matrices["nw"], nan=0.0)
         nw_plus = np.nan_to_num(matrices["nw_plus"], nan=0.0)
@@ -356,7 +356,16 @@ class Bootstrap(Generic[T]):
         Returns:
             Expected EF1 frequency weighted by equilibrium.
         """
-        # Handle NaN values by treating them as 0
+        # NOTE: NaN→0 is lossy for EF1. NaN means "no accepts occurred"
+        # (undefined), not "0% EF1" (worst fairness). Strategies like Walk
+        # that never accept have all-NaN EF1 rows/columns. Treating NaN as 0
+        # conflates "undefined" with "worst fairness." A proper fix would use
+        # a renormalized weighted average excluding NaN cells:
+        #   EF1_eq = Σ(σ_i·EF1_ij·σ_j | defined) / Σ(σ_i·σ_j | defined).
+        # In practice this is acceptable because Walk (the only all-NaN
+        # strategy) receives near-zero equilibrium weight (~1e-15), so the
+        # NaN→0 contribution is negligible in equilibrium-weighted metrics.
+        # Tough/Soft have low but defined EF1 for most matchups.
         ef1_clean = np.nan_to_num(ef1_matrix, nan=0.0)
         return float(sigma @ ef1_clean @ sigma)
 
@@ -433,6 +442,7 @@ class Bootstrap(Generic[T]):
                 sigma_sub = get_cached_equilibrium(policy_subset)
                 indices = [metagame.policy_index(p) for p in policy_subset]
                 sub_matrix = wf_matrix[np.ix_(indices, indices)]
+                # NOTE: NaN→0 is lossy for EF1 — see _compute_ef1_at_equilibrium.
                 sub_matrix_clean = np.nan_to_num(sub_matrix, nan=0.0)
                 return float(sigma_sub @ sub_matrix_clean @ sigma_sub)
             return value_fn
@@ -445,6 +455,7 @@ class Bootstrap(Generic[T]):
             "uw": matrices["payoff"],
             "nw": matrices["nw"],
             "nw_plus": matrices["nw_plus"],
+            "ef1": matrices["ef1"],
         }
 
         # Compute Shapley for all welfare functions (shares cache)
@@ -492,6 +503,18 @@ class Bootstrap(Generic[T]):
             counts_matrix=matrices["counts"],
         )
 
+        # All metric matrices for multi-metric analysis
+        # NOTE: payoff/nw/nw_plus have no NaN so nan_to_num is harmless.
+        # EF1 has NaN for matchups with no accepts (e.g. Walk's entire
+        # row/column). NaN→0 is lossy but acceptable since Walk gets
+        # near-zero equilibrium weight — see _compute_ef1_at_equilibrium.
+        metric_matrices = {
+            "payoff": np.nan_to_num(matrices["payoff"], nan=0.0),
+            "nw": np.nan_to_num(matrices["nw"], nan=0.0),
+            "nw_plus": np.nan_to_num(matrices["nw_plus"], nan=0.0),
+            "ef1": np.nan_to_num(matrices["ef1"], nan=0.0),
+        }
+
         # 3. Full game analysis
         sigma_full = metagame.solve(solver)
         regret_full, nash_value_full, expected_utils_full = compute_regret(
@@ -500,12 +523,21 @@ class Bootstrap(Generic[T]):
         welfare_full = self._compute_welfare_all(sigma_full, matrices)
         ef1_full = self._compute_ef1_at_equilibrium(matrices["ef1"], sigma_full)
 
+        # Per-agent expected value at equilibrium for every metric
+        per_agent_values_full = {}
+        for metric_name, M in metric_matrices.items():
+            per_agent_values_full[metric_name] = {
+                p: float(M[i] @ sigma_full)
+                for i, p in enumerate(policies)
+            }
+
         full_game_result = {
             "sigma": sigma_full,
             "regret": {p: float(regret_full[i]) for i, p in enumerate(policies)},
             "welfare": welfare_full,
             "ef1": ef1_full,
             "nash_value": nash_value_full,
+            "per_agent_values": per_agent_values_full,
         }
 
         # 4. Leave-one-out analysis (L1 and L2)
@@ -539,30 +571,48 @@ class Bootstrap(Generic[T]):
             # EF1 in baseline game
             ef1_B = self._compute_ef1_at_equilibrium(baseline_matrices["ef1"], sigma_B)
 
-            # --- L1: Partner lift for each incumbent ---
-            # Expand sigma_B to full game indices for baseline_value computation
+            # --- L1: Partner lift for each incumbent, all metrics ---
+            # Expand sigma_B to full game indices
             sigma_B_full = np.zeros(metagame.n_policies)
             for i, p in enumerate(baseline_policies):
                 sigma_B_full[metagame.policy_index(p)] = sigma_B[i]
 
-            per_incumbent_lift = {}
-            for incumbent in baseline_policies:
-                # μ(incumbent, candidate) - U_B(incumbent)
-                pairwise = metagame.pairwise_payoff(incumbent, candidate)
-                baseline_val = metagame.expected_value(incumbent, sigma_B_full)
-                per_incumbent_lift[incumbent] = pairwise - baseline_val
-
-            lifts = list(per_incumbent_lift.values())
             sigma_B_dict = {p: sigma_B[i] for i, p in enumerate(baseline_policies)}
+
+            # Compute partner lift for every metric matrix
+            per_incumbent_lift = {}  # metric -> {incumbent -> lift}
+            lift_aggregations = {}   # metric -> {uniform_avg, eq_avg, min, max}
+            per_agent_values_B = {}  # metric -> {agent -> value at baseline eq}
+
+            for metric_name, M in metric_matrices.items():
+                inc_idx = candidate_idx
+                per_metric_lift = {}
+                per_metric_values_B = {}
+
+                for incumbent in baseline_policies:
+                    i_idx = metagame.policy_index(incumbent)
+                    pairwise = float(M[i_idx, inc_idx])
+                    baseline_val = float(M[i_idx] @ sigma_B_full)
+                    per_metric_lift[incumbent] = pairwise - baseline_val
+                    per_metric_values_B[incumbent] = baseline_val
+
+                lifts = list(per_metric_lift.values())
+                per_incumbent_lift[metric_name] = per_metric_lift
+                per_agent_values_B[metric_name] = per_metric_values_B
+                lift_aggregations[metric_name] = {
+                    "uniform_avg": float(np.mean(lifts)),
+                    "equilibrium_avg": sum(
+                        sigma_B_dict[p] * per_metric_lift[p]
+                        for p in baseline_policies
+                    ),
+                    "min": float(np.min(lifts)),
+                    "max": float(np.max(lifts)),
+                }
 
             l1_results[candidate] = {
                 "per_incumbent": per_incumbent_lift,
-                "uniform_avg": float(np.mean(lifts)),
-                "equilibrium_avg": sum(
-                    sigma_B_dict[p] * per_incumbent_lift[p] for p in baseline_policies
-                ),
-                "min": float(np.min(lifts)),
-                "max": float(np.max(lifts)),
+                "aggregations": lift_aggregations,
+                "per_agent_values_B": per_agent_values_B,
                 "sigma_B": sigma_B,
                 "regret_B": {p: float(regret_B[i]) for i, p in enumerate(baseline_policies)},
                 "welfare_B": welfare_B,
@@ -584,12 +634,24 @@ class Bootstrap(Generic[T]):
             ])
             equilibrium_shift = l1_norm(sigma_full_restricted, sigma_B)
 
-            # Incumbent value shifts
-            incumbent_shifts = {}
-            for i, p in enumerate(baseline_policies):
-                V_B = baseline_game.expected_value(p, sigma_B)
-                V_full = metagame.expected_value(p, sigma_full)
-                incumbent_shifts[p] = V_full - V_B
+            # Incumbent value shifts for every metric
+            incumbent_shifts = {}  # metric -> {incumbent -> shift}
+            per_agent_values_full = {}  # metric -> {incumbent -> value at full eq}
+            for metric_name, M in metric_matrices.items():
+                per_metric_shifts = {}
+                per_metric_values_full = {}
+                for inc in baseline_policies:
+                    i_full = metagame.policy_index(inc)
+                    i_base = baseline_game.policy_index(inc)
+                    M_base = metric_matrices[metric_name][
+                        np.ix_(baseline_indices, baseline_indices)
+                    ]
+                    V_B = float(M_base[i_base] @ sigma_B)
+                    V_full = float(M[i_full] @ sigma_full)
+                    per_metric_shifts[inc] = V_full - V_B
+                    per_metric_values_full[inc] = V_full
+                incumbent_shifts[metric_name] = per_metric_shifts
+                per_agent_values_full[metric_name] = per_metric_values_full
 
             l2_results[candidate] = {
                 "delta_eco": delta_eco,
@@ -598,6 +660,7 @@ class Bootstrap(Generic[T]):
                 "entry_mass": entry_mass,
                 "equilibrium_shift": equilibrium_shift,
                 "incumbent_shifts": incumbent_shifts,
+                "per_agent_values_full": per_agent_values_full,
                 "ef1_lift": ef1_full - ef1_B,
             }
 
@@ -616,6 +679,7 @@ class Bootstrap(Generic[T]):
             l3_result["total_value"] = {
                 wf: welfare_full[wf] for wf in ["uw", "nw", "nw_plus"]
             }
+            l3_result["total_value"]["ef1"] = ef1_full
 
         return {
             "l1": l1_results,
