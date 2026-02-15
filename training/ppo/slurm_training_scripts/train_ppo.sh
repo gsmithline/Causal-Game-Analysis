@@ -1,0 +1,79 @@
+#!/bin/bash                                                                                                                                                                                               
+#SBATCH --job-name=ppo_bargain                                                                                                                                                                            
+#SBATCH --partition=gpu_mig40,gpu,spgpu                                                                                                                                                                   
+#SBATCH --gres=gpu:1                                                                                                                                                                                      
+#SBATCH --ntasks=1                                                                                                                                                                                        
+#SBATCH --cpus-per-task=4                                                                                                                                                                                 
+#SBATCH --mem=8G                                                                                                                                                                                          
+#SBATCH --time=01:00:00                                                                                                                                                                                   
+#SBATCH --output=logs/ppo_%j.out                                                                                                                                                                          
+#SBATCH --error=logs/ppo_%j.err                                                                                                                                                                           
+#SBATCH --account=wellman98                                                                                                                                                                               
+#SBATCH --mail-type=END,FAIL                                                                                                                                                                              
+#SBATCH --mail-user=gsmithl@umich.edu                                                                                                                                                                     
+#SBATCH --chdir=/home/gsmithl/Causal-Game-Analysis                                                                                                                                                        
+                                                                                                                                                                                                        
+set -euo pipefail                                                                                                                                                                                         
+mkdir -p logs                                                                                                                                                                                             
+                                                                                                                                                                                                        
+echo "=============================================="                                                                                                                                                     
+echo "PPO Training for Bargaining Game"                                                                                                                                                                   
+echo "=============================================="                                                                                                                                                     
+echo "Job ID : $SLURM_JOB_ID"                                                                                                                                                                             
+echo "Nodes  : $SLURM_NODELIST"                                                                                                                                                                           
+echo "=============================================="                                                                                                                                                     
+                                                                                                                                                                                                        
+# Load conda and activate environment                                                                                                                                                                     
+module load python3.11-anaconda                                                                                                                                                                           
+conda activate torch_env                                                                                                                                                                                  
+                                                                                                                                                                                                        
+export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK}                                                                                                                                                             
+export MKL_NUM_THREADS=${SLURM_CPUS_PER_TASK}                                                                                                                                                             
+export OPENBLAS_NUM_THREADS=${SLURM_CPUS_PER_TASK}                                                                                                                                                        
+                                                                                                                                                                                                        
+# Weights & Biases configuration                                                                                                                                                                          
+export WANDB_PROJECT="gsmithl-university-of-michigan/Iterative Meta-Game Analysis"                                                                                                                        
+export WANDB_RUN_NAME="ppo_mlp_${SLURM_JOB_ID}"                                                                                                                                                           
+export WANDB_API_KEY="9e4245617ee0b64c178395bb5d6eaffb3815a69b"                                                                                                                                           
+                                                                                                                                                                                                        
+nvidia-smi -L || true                                                                                                                                                                                     
+                                                                                                                                                                                                        
+# Build CUDA extension                                                                                                                                                                                    
+echo "Building CUDA extension..."                                                                                                                                                                         
+pip install -e ./simulator --no-build-isolation -q                                                                                                                                                        
+echo "CUDA extension ready."                                                                                                                                                                              
+                                                                                                                                                                                                        
+# Training hyperparameters                                                                                                                                                                                
+NUM_ENVS=4096                                                                                                                                                                                             
+ITERATIONS=60000000                                                                                                                                                                                       
+EPISODES_PER_ITER=2000                                                                                                                                                                                    
+LEARNING_RATE=1e-4                                                                                                                                                                                        
+SEED=42                                                                                                                                                                                                   
+LOG_INTERVAL=10000                                                                                                                                                                                        
+SAVE_DIR="./checkpoints/ppo_${SLURM_JOB_ID}"                                                                                                                                                              
+                                                                                                                                                                                                        
+mkdir -p "$SAVE_DIR"                                                                                                                                                                                      
+                                                                                                                                                                                                        
+echo ""                                                                                                                                                                                                   
+echo "Training Configuration:"                                                                                                                                                                            
+echo "  Environments:     $NUM_ENVS"                                                                                                                                                                      
+echo "  Iterations:       $ITERATIONS"                                                                                                                                                                    
+echo "  Episodes/iter:    $EPISODES_PER_ITER"                                                                                                                                                             
+echo "  Learning rate:    $LEARNING_RATE"                                                                                                                                                                 
+echo "  Seed:             $SEED"                                                                                                                                                                          
+echo "  Save directory:   $SAVE_DIR"                                                                                                                                                                      
+echo "=============================================="                                                                                                                                                     
+echo ""                                                                                                                                                                                                   
+                                                                                                                                                                                                        
+python3 -u -m training.ppo.train \                                                                                                                                                                        
+    --num-envs $NUM_ENVS \                                                                                                                                                                                
+    --iterations $ITERATIONS \                                                                                                                                                                            
+    --episodes-per-iter $EPISODES_PER_ITER \                                                                                                                                                              
+    --lr $LEARNING_RATE \                                                                                                                                                                                 
+    --seed $SEED \                                                                                                                                                                                        
+    --save-dir "$SAVE_DIR" \                                                                                                                                                                              
+    --wandb-project "$WANDB_PROJECT" \                                                                                                                                                                    
+    --wandb-run-name "$WANDB_RUN_NAME" \                                                                                                                                                                  
+    --log-interval $LOG_INTERVAL                                                                                                                                                                          
+                                                                                                                                                                                                        
+echo "Training complete!" 

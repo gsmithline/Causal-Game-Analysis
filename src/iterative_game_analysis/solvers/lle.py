@@ -24,7 +24,7 @@ from iterative_game_analysis.solvers.base import register_solver
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
-EPSILON = 1e-10
+EPSILON = 1e-6
 
 
 def _payoff_tensor_from_matrix(payoff_matrix: NDArray[np.floating]) -> NDArray[np.floating]:

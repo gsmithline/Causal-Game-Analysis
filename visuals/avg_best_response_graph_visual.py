@@ -99,6 +99,14 @@ def create_average_best_response_graph(
     fig, ax = plt.subplots(figsize=figsize)
     ax.axis('off')
 
+    # Set axis limits based on layout to control self-loop sizing
+    all_x = [p[0] for p in pos.values()]
+    all_y = [p[1] for p in pos.values()]
+    margin = 0.3
+    ax.set_xlim(min(all_x) - margin, max(all_x) + margin)
+    ax.set_ylim(min(all_y) - margin, max(all_y) + margin)
+    ax.set_aspect('equal')
+
     # 5) Colormap
     cmap = cm.Blues
     norm = colors.Normalize(vmin=0, vmax=1)
@@ -143,21 +151,73 @@ def create_average_best_response_graph(
         color = cmap(norm(p))
         width = 3 + 6 * p
         style = 'solid' if p > 1.0 else 'dashed' if p > 0.33 else 'dotted'
-        
+
         # Use FancyArrowPatch for better self-loop control
+        # Position self-loop on the outer side of the circular layout
         x, y = pos[u]
-        arrow = FancyArrowPatch(
-            posA=(x - 0.08, y - 0.12),
-            posB=(x + 0.08, y - 0.12),
-            connectionstyle="arc3,rad=1.5",
-            arrowstyle="-|>",
-            mutation_scale=30,
-            color=color,
-            linewidth=width,
-            linestyle='solid' if style == 'solid' else ('dashed' if style == 'dashed' else 'dotted'),
-            zorder=1,
+
+        # Calculate direction from center to node (outward direction)
+        dist = np.sqrt(x**2 + y**2)
+        if dist > 0:
+            # Unit vector pointing outward from center
+            dx, dy = x / dist, y / dist
+        else:
+            # Node at center, default to pointing down
+            dx, dy = 0, -1
+
+        # Perpendicular vector for the arc endpoints
+        perp_x, perp_y = -dy, dx
+
+        # Draw self-loop manually using a path
+        from matplotlib.path import Path as MPath
+        from matplotlib.patches import PathPatch, FancyArrowPatch
+
+        # Calculate angle from center for proper loop positioning
+        angle_rad = np.arctan2(dy, dx)
+
+        # Loop parameters - scale based on graph size
+        # For circular layout, nodes are typically at distance 1 from center
+        loop_radius = 0.08   # Size of the loop
+        loop_dist = 0.18     # Distance from node center to loop center
+
+        # Center of the self-loop (outward from node)
+        loop_cx = x + dx * loop_dist
+        loop_cy = y + dy * loop_dist
+
+        # Create circular arc path for the self-loop
+        # Arc spanning ~250 degrees (leaves gap near the node)
+        n_points = 25
+        angles = np.linspace(angle_rad + 2.0, angle_rad - 2.0, n_points)
+        path_x = loop_cx + loop_radius * np.cos(angles)
+        path_y = loop_cy + loop_radius * np.sin(angles)
+
+        # Draw the arc
+        for i in range(len(path_x) - 1):
+            seg_style = style
+            ax.plot(
+                [path_x[i], path_x[i+1]],
+                [path_y[i], path_y[i+1]],
+                color=color,
+                linewidth=width,
+                linestyle=seg_style,
+                solid_capstyle='round',
+                zorder=3,
+            )
+
+        # Add arrowhead at the end
+        arrow_idx = -1
+        ax.annotate(
+            '',
+            xy=(path_x[arrow_idx], path_y[arrow_idx]),
+            xytext=(path_x[arrow_idx-1], path_y[arrow_idx-1]),
+            arrowprops=dict(
+                arrowstyle='-|>',
+                color=color,
+                lw=width,
+                mutation_scale=25,
+            ),
+            zorder=4,
         )
-        ax.add_patch(arrow)
 
     # 9) Draw labels with halo
     labels = {}
@@ -190,3 +250,36 @@ def create_average_best_response_graph(
     out_path = os.path.join(save_dir, filename + '.png') if save_dir else filename + '.png'
     fig.savefig(out_path, dpi=dpi, bbox_inches='tight')
     plt.close(fig)
+
+    print(f"Saved figure to: {out_path}")
+
+
+if __name__ == "__main__":
+    import json
+    from pathlib import Path
+
+    # Load bootstrap results
+    results_path = Path(__file__).parent.parent / "data" / "analysis" / "bootstrap_br_results.json"
+
+    if not results_path.exists():
+        print(f"Error: {results_path} not found")
+        print("Run bootstrap_best_response.py first to generate the data.")
+        sys.exit(1)
+
+    with open(results_path) as f:
+        results = json.load(f)
+
+    avg_br_matrix = np.array(results["avg_br_matrix"])
+    strategy_names = results["strategy_names"]
+
+    print(f"Loaded BR matrix for strategies: {strategy_names}")
+    print(f"Matrix:\n{avg_br_matrix}")
+
+    # Generate figure
+    output_dir = Path(__file__).parent.parent / "data" / "analysis"
+    create_average_best_response_graph(
+        avg_br_matrix,
+        strategy_names,
+        filename="average_best_response_graph",
+        save_dir=str(output_dir),
+    )
