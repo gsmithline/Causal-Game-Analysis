@@ -302,8 +302,6 @@ def load_psro_strategy(name: str, path: Path, use_mixture: bool = True) -> Strat
         p2_mixture.eval()
 
         print(f"  Loaded PSRO mixture with {len(p1_policies)} P1 policies and {len(p2_policies)} P2 policies")
-        print(f"  P1 sigma: {sigma_p1.round(3)}")
-        print(f"  P2 sigma: {sigma_p2.round(3)}")
 
         return Strategy(name=name, p1_policy=p1_mixture, p2_policy=p2_mixture,
                        algorithm="psro", is_mixture=True)
