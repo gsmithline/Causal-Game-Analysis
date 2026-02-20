@@ -155,13 +155,11 @@ class EF1Agent:
                 my_val = self._value_of(values, my_items)
                 if my_val > outside_raw + 1e-6:
                     return ACTION_ACCEPT
-                else:
-                    return ACTION_WALK
-            else:
-                can_counteroffer = any(action_mask[i] for i in range(80))
-                if not can_counteroffer:
-                    return ACTION_WALK
-                return self._pick_counteroffer(sorted_frontier, current_player, round_num)
+            # Offer is not EF1, or EF1 but below BATNA — try to counter
+            can_counteroffer = any(action_mask[i] for i in range(80))
+            if not can_counteroffer:
+                return ACTION_WALK
+            return self._pick_counteroffer(sorted_frontier, current_player, round_num)
         else:
             return self._pick_counteroffer(sorted_frontier, current_player, round_num)
 
