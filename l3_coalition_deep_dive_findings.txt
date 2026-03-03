@@ -1,0 +1,224 @@
+L3 Coalition Deep Dive — Key Findings
+======================================
+Generated: 2026-02-22
+Source: visuals/l3_coalition_deep_dive.py (1000 bootstrap samples, 5.12M coalition records)
+Figures: data/analysis/figures/l3_deep_dive/
+
+
+Overview
+--------
+The L3 Shapley/Banzhaf attributions are overwhelmingly driven by small (2-4 player)
+restricted games. Marginal contributions drop 10-20x between coalition size s=0 and
+s=3. By s=5, most agents are within 1% of zero. The specific subgames that matter
+most involve mixtures of strong and weak agents, where the strong agent dramatically
+restructures the equilibrium.
+
+
+Agent Tiers (from Analysis 1: Marginal by Coalition Size)
+---------------------------------------------------------
+  Always-positive:   OpenAI-5.2-Low, PPO
+                     Marginals stay positive at every coalition size. Never hurt the ecosystem.
+
+  Small-only:        MAPPO, OpenAI-5.2, EF1, NFSP
+                     Positive in small coalitions, near-zero in large ones.
+
+  Sign-flippers:     PSRO
+                     Positive for s<4, negative for s>4. Cancels under Banzhaf.
+
+  Drags:             Walk, Tough, Soft
+                     Negative at nearly every size except singleton.
+
+
+The PSRO Puzzle — Solved (Analysis 5)
+-------------------------------------
+PSRO has 32% equilibrium weight but near-zero Banzhaf. The PPO vs PSRO size overlay
+(a5_ppo_psro_size_overlay.png) makes the mechanism clear:
+
+  - Both PPO and PSRO start at ~85% NW at s=0 (singleton).
+  - PPO stays positive across ALL coalition sizes (+0.82% even at s=9).
+  - PSRO crosses zero around s=4 and goes to -0.36% at s=8.
+
+Banzhaf weights all sizes equally, so PSRO's positive and negative marginals cancel
+to near-zero. Shapley upweights the extremes (s=0 and s=9 get weight 1/n), which
+captures the large positive singleton value. PPO doesn't have this problem because
+it never goes negative — both Shapley and Banzhaf are high.
+
+The PSRO NW marginal histogram (a5_psro_nw_histogram.png) confirms: the distribution
+is centered near zero with heavy tails in both directions.
+
+
+Specific Subgames Driving Attributions (Analysis 2)
+---------------------------------------------------
+
+1. The {Soft} solo game is everyone's goldmine
+
+   Agent joining {Soft}     NW marginal    NW+ marginal
+   ─────────────────────    ───────────    ────────────
+   OpenAI-5.2-Low            +29.3%         +74.5%
+   PPO                       +21.2%            —
+   PSRO                      +19.8%            —
+   MAPPO                     +19.8%            —
+   NFSP                      +17.2%         +26.9%
+   OpenAI-5.2                +20.0%         +44.9%
+   EF1                       +18.7%         +47.8% (from {Soft, Tough})
+
+   Soft alone is so exploitable that any competent agent joining it gets massive
+   credit. This single 2-player subgame is the #1 non-singleton contributor for
+   almost every agent. Soft functions as an "inflatable target" — it inflates
+   everyone else's attribution.
+
+
+2. {Tough, NFSP} is the most toxic pair in the game
+
+   Tough joining {NFSP} produces:
+     -13.6% NW,  -54.8% NW+,  -70.0pp EF1
+
+   This 2-player subgame is catastrophic. The NFSP-Tough equilibrium is deeply
+   unfair and welfare-destroying. Interestingly, adding Walk partially buffers
+   this: Tough joining {NFSP, Walk} = -8.5% NW (vs -13.6%). Walk as a stabilizer
+   in this context is counterintuitive.
+
+
+3. OpenAI-5.2-Low literally cannot hurt Nash Welfare
+
+   Its worst NW coalition across all 512 subgames is +0.45%
+   (joining {MAPPO, NFSP, PPO, PSRO, Walk}).
+
+   No other agent has this property — universally beneficial for NW. Same for NW+:
+   worst coalition is still +1.75%. The mechanism is that it's so strong it always
+   improves the equilibrium by pulling weight toward itself.
+
+   Similarly, OpenAI-5.2-Low's bottom-5 UW coalitions are all still positive
+   (minimum +0.22%). It cannot reduce utilitarian welfare in any subgame.
+
+
+4. PPO is a fairness chameleon — depends entirely on the subgame
+
+   PPO joining {Soft, Tough}:   +50.6pp EF1   (huge fairness boost)
+   PPO joining {EF1, PSRO}:     -34.7pp EF1   (huge fairness destroyer)
+
+   Same agent, opposite effect. In weak-agent subgames, PPO restructures the
+   equilibrium toward fairness. But when EF1 and PSRO already achieve fairness,
+   PPO disrupts it. PPO's aggregate Banzhaf for EF1 lands somewhere in between
+   because these effects partially cancel.
+
+
+5. EF1 never hurts fairness — in any subgame, period
+
+   EF1's minimum EF1 marginal across all 512 coalitions is +0.15pp
+   (joining {MAPPO, NFSP, PPO, PSRO, Soft, Tough}).
+
+   Even in a 7-player game packed with competitive RL agents, adding EF1 still
+   improves fairness. Its top coalitions are dramatic: +100pp joining the empty
+   coalition, +85.8pp joining {Tough}.
+
+   But EF1's NW+ story is more nuanced — EF1 joining {OpenAI-5.2-Low} gives
+   -12.7% NW+. Fairness and efficiency are in genuine tension for EF1 in
+   strong-agent subgames.
+
+
+6. Tough's NW+ redemption in the {PPO, Walk} subgame
+
+   Tough joining {PPO, Walk}:  +7.6% NW+
+
+   Tough alone has 0% NW+ (singleton advantage is zero). But in this specific
+   3-player subgame, Tough creates positive advantages. The likely mechanism:
+   Tough gives Walk someone else to compete with, changing the equilibrium
+   structure so PPO doesn't crush Walk as completely, creating a more balanced
+   game with positive NW+ for all.
+
+
+7. Walk joining {OpenAI-5.2-Low} is the single most destructive entry
+
+   -13.3% NW,  -52.8% NW+
+
+   Walk entering a solo OpenAI-5.2-Low game destroys more welfare than any other
+   2-player entry. Walk drags the equilibrium down just enough to waste
+   OpenAI-5.2-Low's potential, but not enough to create any compensating structure.
+
+
+Pairwise Synergy Patterns (Analysis 3)
+---------------------------------------
+Heatmaps: a3_synergy_{uw,nw,nw_plus,ef1}.png
+
+Key patterns from the NW+ synergy matrix:
+
+  Synergistic pairs (partner's presence INCREASES target's marginal):
+    - Walk synergizes with PPO (+5.1), PSRO (+4.1), MAPPO (+4.2)
+      Walk creates exploitable opponents; strong agents benefit from its presence.
+    - Tough synergizes with PPO (+3.9), MAPPO (+2.5)
+      Similar mechanism — Tough is exploitable but not as much as Walk.
+
+  Antagonistic pairs (partner's presence DECREASES target's marginal):
+    - OpenAI-5.2-Low is antagonistic with almost everyone (-5 to -10 column)
+      It's so strong that when it's present, there's less room for others.
+    - PPO and PSRO are mutually antagonistic (-6.1 NW+)
+      They compete for the same equilibrium niche.
+    - OpenAI-5.2 and PSRO are antagonistic (-6.1 NW+)
+      Same niche competition.
+
+  The synergy matrix is NOT symmetric: Walk helping PPO (+5.1) is not the same
+  as PPO helping Walk (-0.40). The direction matters — weak agents help strong
+  agents by being exploitable, but strong agents don't reciprocate.
+
+
+Equilibrium Displacement (Analysis 4)
+--------------------------------------
+Heatmap: a4_equilibrium_displacement.png
+
+Who steals whose equilibrium weight:
+
+  PPO entering crushes:
+    - NFSP: -0.28 weight (largest displacement in the matrix)
+    - MAPPO: -0.19
+    - PSRO: -0.18
+    PPO directly steals equilibrium mass from these three agents.
+
+  PSRO entering crushes:
+    - NFSP: -0.14
+    - MAPPO: -0.14
+    Same victims, smaller magnitude — PSRO is a weaker version of PPO's displacement.
+
+  OpenAI-5.2 entering crushes:
+    - MAPPO: -0.24 (strongest single displacement)
+    Surprisingly, OpenAI-5.2 displaces MAPPO more than PPO does.
+
+  NFSP gains weight when EF1 enters (+0.11)
+    EF1 changes the equilibrium landscape in NFSP's favor. This is likely because
+    EF1 constrains the game toward fair outcomes, and NFSP happens to perform well
+    under those constraints.
+
+  Walk and Tough displace each other modestly (-0.01 to -0.02)
+    The two weak agents compete for the same "bottom of the equilibrium" niche.
+
+
+Summary: Which Restricted Games Matter Most
+--------------------------------------------
+1. The attributions are dominated by 2-3 player subgames.
+
+2. The single most important subgame type is {strong agent joining Soft/Walk/Tough}.
+   These inflate the strong agent's marginal because the weak agent is so exploitable.
+
+3. The {Tough, NFSP} 2-player game is uniquely destructive and drags down
+   both agents' attributions significantly.
+
+4. OpenAI-5.2-Low's dominance comes from universality — it helps in EVERY subgame,
+   not just specific ones. This is qualitatively different from PPO/MAPPO, which
+   help in most but hurt in some.
+
+5. PSRO's near-zero Banzhaf is not because it's unimportant — it has large
+   positive AND negative marginals. The sign flip at coalition size ~4 causes
+   exact cancellation under uniform (Banzhaf) weighting.
+
+6. Fairness attribution is dominated by EF1's universal positive contribution
+   and the strong negative effects of Walk/Tough in small coalitions. PPO's
+   fairness contribution is highly context-dependent.
+
+
+Figures Reference
+-----------------
+  a1_marginal_by_size_{uw,nw,nw_plus,ef1}.png   — Size-resolved marginal curves with CI
+  a3_synergy_{uw,nw,nw_plus,ef1}.png             — 10x10 pairwise synergy heatmaps
+  a4_equilibrium_displacement.png                 — 10x10 displacement heatmap
+  a5_ppo_psro_size_overlay.png                    — PPO vs PSRO with Shapley weights
+  a5_psro_nw_histogram.png                        — PSRO NW marginal distribution

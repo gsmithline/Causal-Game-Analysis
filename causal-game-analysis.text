@@ -1,0 +1,239 @@
+Causal Meta-Game Analysis Framework (SCM + do-calculus, notation-clean)
+
+This rewrite makes the framework explicitly causal: every quantity is an interventional estimand of the form \(\mathbb{E}[\cdot \mid \do(\cdot)]\). It also keeps the multi-level structure you want (Level 1: no re-equilibration; Level 2: re-equilibrate; Level 3: Shapley/Banzhaf over sub-libraries), and it cleanly distinguishes \pi_i (incumbents in the reduced game) from \pi_j (a candidate not in the reduced game).
+
+⸻
+
+0) Objects and notation (everything defined)
+
+Policy sets
+	•	Universe of policies: \Pi = \{\pi_1,\ldots,\pi_n\}.
+	•	Baseline (reduced) library: B \subseteq \Pi.
+	•	Candidate policy (not in baseline): \pi_j \in \Pi \setminus B.
+	•	Incumbent policy (in baseline): \pi_i \in B.
+
+Environment and outcomes
+	•	Let E denote the underlying environment/task distribution (fixed throughout; you can treat it as implicit).
+	•	Let Z denote exogenous randomness (seeds, type draws, stochastic transitions, etc.).
+	•	Let Y\in\mathbb{R} be the scalar evaluation outcome of interest (welfare, success rate, a player’s payoff, etc.).
+
+Pairwise cross-play outcome
+
+For any ordered pair (\pi,\pi'), define the true pairwise expected outcome
+\[
+\mu(\pi,\pi') \;:=\; \mathbb{E}\big[\,Y \;\big|\; \do(A=\pi,\;B=\pi')\big],
+\]
+where A and B denote the two player-roles (row/column).
+In practice you estimate \mu(\pi,\pi') from cross-play; denote its empirical estimate by u(\pi,\pi')\approx \mu(\pi,\pi').
+
+⸻
+
+1) Causal meta-game SCM (library \to meta-game \to equilibrium \to ecosystem value)
+
+To make “ecosystem effects” formally causal, define the following random variables:
+	•	L: the available library (a set-valued variable taking values S\subseteq \Pi).
+	•	M_L: the empirical meta-game object induced by library L (a matrix/tensor of pairwise estimates among policies in L).
+	•	\sigma_L: the meta-solution (equilibrium mixture) produced by a fixed solver.
+	•	W_L: the ecosystem scalar value (your reported metric at equilibrium).
+
+Structural equations (deterministic mechanisms)
+
+Fix:
+	•	a solver \mathcal{S} (e.g., max-ent Nash),
+	•	an evaluation functional Y_{\text{eco}} (to avoid name clash with per-episode outcome Y).
+
+Then define the SCM:
+\begin{aligned}
+M_L &= g(L) \quad \text{(meta-game construction / estimation from cross-play)}\\
+\sigma_L &= \mathcal{S}(M_L)\\
+W_L &= Y_{\text{eco}}(\sigma_L, M_L).
+\end{aligned}
+
+The key causal estimand is therefore:
+\[
+\boxed{
+W(S) \;:=\; \mathbb{E}\!\left[\, W_L \mid \do(L=S)\right]
+\;=\; Y_{\text{eco}}\!\big(\sigma_S, M_S\big)
+}
+\]
+(where the last equality holds because \mathcal{S} and Y_{\text{eco}} are deterministic given M_S, and M_S is defined by the intervention \(\do(L=S)\)).
+This is your “ecosystem value” but now explicitly written as an intervention.
+
+⸻
+
+Level 1: Interaction-level (post-policy / partner-fixed; no re-equilibration)
+
+Causal meaning
+
+We keep the ecosystem fixed at the baseline intervention \(\do(L=B)\). Under this intervention, the equilibrium mixture \sigma_B is fixed. We then ask:
+
+If an incumbent \pi_i\in B faces the candidate \pi_j\notin B, how does that compare to facing a typical baseline equilibrium partner?
+
+Baseline equilibrium opponent distribution (derived, not re-solved with \pi_j)
+
+Under \(\do(L=B)\), \sigma_B = \mathcal{S}(M_B) is fixed. Define the baseline “typical partner” as drawing \pi\sim \sigma_B.
+
+Baseline equilibrium interaction value for incumbent \pi_i\in B
+
+\boxed{
+U_B(\pi_i)
+:= \mathbb{E}_{\pi \sim \sigma_B}\big[\mu(\pi_i,\pi)\big]
+= \sum_{\pi\in B} \sigma_B(\pi)\,\mu(\pi_i,\pi).
+}
+This is an interventional object because \sigma_B is defined under \(\do(L=B)\), and \mu is defined via \(\do(A=\cdot,B=\cdot)\).
+
+Level-1 Partner Lift (incumbent-specific; your intended definition)
+
+\boxed{
+\mathrm{PL}_1(\pi_i;\pi_j \mid B)
+:= \mu(\pi_i,\pi_j) - U_B(\pi_i).
+}
+Expanded as a purely do-calculus-friendly expression:
+\[
+\mathrm{PL}_1(\pi_i;\pi_j \mid B)
+=
+\mathbb{E}[Y \mid \do(A=\pi_i, B=\pi_j)]
+-
+\sum_{\pi\in B}\sigma_B(\pi)\,\mathbb{E}[Y \mid \do(A=\pi_i, B=\pi)].
+\]
+
+Key point: there is no \(\do(L=B\cup\{\pi_j\})\) here. The ecosystem does not adapt; only the partner in a single interaction changes relative to a baseline equilibrium partner mixture.
+
+⸻
+
+Level-1 aggregations (rigorous summaries you can report)
+
+Level 1 yields the vector \{\mathrm{PL}_1(\pi_i;\pi_j\mid B)\}_{\pi_i\in B}. Common summaries:
+	•	Uniform-average lift across incumbents:
+\boxed{
+\overline{\mathrm{PL}}_1^{\text{unif}}(\pi_j\mid B)
+:= \frac{1}{|B|}\sum_{\pi_i\in B}\mathrm{PL}_1(\pi_i;\pi_j\mid B).
+}
+	•	Equilibrium-average lift across incumbents (explicitly defined; still “standard”):
+\boxed{
+\overline{\mathrm{PL}}_1^{\sigma}(\pi_j\mid B)
+:= \sum_{\pi_i\in B}\sigma_B(\pi_i)\,\mathrm{PL}_1(\pi_i;\pi_j\mid B).
+}
+	•	Worst-case (robust) lift across incumbents:
+\boxed{
+\mathrm{PL}_{1}^{\min}(\pi_j\mid B)
+:= \min_{\pi_i\in B}\mathrm{PL}_1(\pi_i;\pi_j\mid B).
+}
+	•	Best-case lift across incumbents:
+\boxed{
+\mathrm{PL}_{1}^{\max}(\pi_j\mid B)
+:= \max_{\pi_i\in B}\mathrm{PL}_1(\pi_i;\pi_j\mid B).
+}
+
+(These are just deterministic functionals of the Level-1 lift vector; no extra modeling assumptions.)
+
+⸻
+
+Level 2: Ecosystem-level (pre-policy / re-equilibrating)
+
+Causal meaning
+
+Now we intervene on the library itself:
+\[
+\do(L=B) \quad \text{vs} \quad \do(L=B\cup\{\pi_j\}).
+\]
+This allows strategic adaptation via recomputing equilibrium.
+
+Define B^+ := B\cup\{\pi_j\}. Then the core Level-2 causal estimand is:
+
+\[
+\boxed{
+\Delta_{\text{eco}}(\pi_j \mid B)
+:= W(B^+) - W(B)
+=
+\mathbb{E}[W_L\mid \do(L=B^+)] - \mathbb{E}[W_L\mid \do(L=B)].
+}
+\]
+
+This is the “ecosystem lift” of adding \pi_j, where the equilibrium mixture may change from \sigma_B to \sigma_{B^+}.
+
+Incumbent value shifts under re-equilibration
+
+For each incumbent \pi_i\in B, define its equilibrium interaction value in ecosystem S:
+V_S(\pi_i) := \mathbb{E}_{\pi\sim\sigma_S}\big[\mu(\pi_i,\pi)\big]
+= \sum_{\pi\in S}\sigma_S(\pi)\,\mu(\pi_i,\pi).
+Then the incumbent’s equilibrium shift due to entry of \pi_j is
+\boxed{
+\Delta_{\text{inc}}(\pi_i;\pi_j \mid B)
+:= V_{B^+}(\pi_i) - V_B(\pi_i).
+}
+
+Equilibrium shift diagnostics (formal)
+
+\boxed{
+\Delta_{\sigma}(\pi_j\mid B) := \|\sigma_{B^+} - \sigma_B\|_1,
+\qquad
+\mathrm{EntryMass}(\pi_j\mid B) := \sigma_{B^+}(\pi_j).
+}
+These are descriptive but important: they detect when the intervention \(\do(L=B^+)\) causes a major strategic regime change.
+
+⸻
+
+Level 3: Ecosystem attribution over reduced libraries (Shapley / Banzhaf)
+
+Causal meaning
+
+Define a cooperative-game value function on subsets using interventional ecosystem value:
+\[
+\boxed{
+v(S) := W(S) = \mathbb{E}[W_L \mid \do(L=S)].
+}
+\]
+Now apply standard cooperative attributions.
+
+Banzhaf value
+
+\boxed{
+\beta(\pi)
+:= \mathbb{E}_{S\subseteq \Pi\setminus\{\pi\}}
+\left[v(S\cup\{\pi\}) - v(S)\right].
+}
+
+Shapley value
+
+\boxed{
+\phi(\pi)
+:= \mathbb{E}_{\text{uniform }\prec}
+\left[
+v(\mathrm{Pred}_\prec(\pi)\cup\{\pi\})
+-
+v(\mathrm{Pred}_\prec(\pi))
+\right].
+}
+
+This is exactly the “ecosystem attribution over reduced meta-games” idea, now grounded as an average over interventions \(\do(L=S)\).
+
+⸻
+
+Optional: Solver sensitivity (rationality-model sensitivity)
+
+All interventional values depend on the solver choice. Make that dependence explicit by indexing the solver:
+W_{\mathcal{S}}(S) := Y_{\text{eco}}\big(\mathcal{S}(M_S), M_S\big).
+Then solver sensitivity is:
+\boxed{
+\mathrm{Sens}(\mathcal{S}_1,\mathcal{S}_2;S)
+:= W_{\mathcal{S}_1}(S) - W_{\mathcal{S}_2}(S).
+}
+
+⸻
+
+Why this is “do-calculus sound” (minimal assumptions, stated clearly)
+	1.	Well-defined interventions: \(\do(L=S)\) means “restrict the available policy set to S” (a standard intervention on the action/strategy set).
+	2.	Equilibrium as a deterministic mediator: \sigma_S=\mathcal{S}(M_S) is a deterministic function of the intervened meta-game.
+	3.	Pairwise outcomes as interventional primitives: \(\mu(\pi,\pi')=\mathbb{E}[Y\mid\do(A=\pi,B=\pi')]\) directly encodes the counterfactual “what if these policies were played.”
+	4.	Level separation is explicit:
+	•	Level 1 holds \(\do(L=B)\) fixed and compares \(\do(\text{partner}=\pi_j)\) to the baseline equilibrium mixture; no re-equilibration.
+	•	Level 2 changes L and therefore allows equilibrium adaptation.
+
+(You typically don’t need to “apply” do-calculus algebraically here; the point is that each estimand is written as an interventional expectation with clear mediators.)
+
+⸻
+
+If you want, I can also add one small SCM diagram line (as text) that you can paste into Notion:
+
+Causal pipeline: \;L \rightarrow M_L \rightarrow \sigma_L \rightarrow W_L, with pairwise primitives \(\mu(\pi,\pi')=\mathbb{E}[Y\mid\do(A=\pi,B=\pi')]\) feeding M_L.

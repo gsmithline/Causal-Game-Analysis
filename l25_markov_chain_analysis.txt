@@ -1,0 +1,129 @@
+L2.5 Markov Chain Best-Response Dynamics — Explanation
+======================================================
+
+What this is
+------------
+The original L2.5 analysis builds epsilon-best-response (BR) graphs and measures
+topological changes (edge churn, LSCC size, SCC entropy) when agents are
+added/removed. That's purely structural — it tells you which edges exist, not
+what happens when agents actually *play* best-response dynamics over time.
+
+The Markov chain extension converts the BR graph into a stochastic process:
+if the current "meta" is strategy i, agents switch to a best response to i.
+When multiple best responses exist, the chain picks uniformly among them.
+This gives the BR graph a dynamical interpretation.
+
+
+How it works
+------------
+1. Transition matrix T: T[i,j] = 1/|BR(i)| if j is a best response to i.
+   If i has no successors, it's absorbing (T[i,i] = 1).
+
+2. Recurrent vs transient classification: Sink SCCs in the condensation DAG
+   are recurrent classes (the meta cycles through them forever). Everything
+   else is transient (visited at most finitely often).
+
+3. Stationary distribution pi: Within each recurrent class, solve the left
+   eigenvector equation pi * T = pi. When multiple recurrent classes exist,
+   weight by absorption probabilities from a uniform start over transient
+   states. Transient strategies get pi = 0.
+
+4. Spectral gap: 1 - |lambda_2|. Larger gap = faster mixing = more volatile
+   meta (the chain forgets its initial state quickly).
+
+5. Mean first passage times (MFPT): Expected number of BR-dynamic steps to
+   go from strategy i to strategy j. Only defined within recurrent classes.
+
+
+Key findings (1000 bootstrap samples)
+--------------------------------------
+
+Stationary distribution vs MENE equilibrium:
+
+  Strategy        pi (mean)    MENE sigma
+  ----------------------------------------
+  PSRO              0.378        0.325      <-- dominates the long-run meta
+  PPO               0.171        0.377      <-- meta visits but doesn't linger
+  OpenAI-5.2-Low    0.138        0.075
+  OpenAI-5.2        0.131        0.046
+  MAPPO             0.111        0.122
+  NFSP              0.053        0.030
+  EF1               0.018        0.019
+  Walk              0.000        0.007
+  Tough             0.000        0.000
+  Soft              0.000        0.000
+
+The main insight: pi and sigma disagree on PPO vs PSRO. MENE says PPO has
+the highest equilibrium weight (0.377), but the Markov chain says PSRO is
+where the meta actually *stays* (0.378). PPO is visited often but the chain
+moves on quickly — PSRO is the attractor.
+
+Walk, Tough, and Soft are transient in 100% of samples: the meta passes
+through them but never returns. They're evolutionary dead ends under BR
+dynamics.
+
+Recurrence probabilities (P that a strategy is in a recurrent class):
+
+  PSRO: 90%  |  PPO: 63%  |  OpenAI-5.2: 60%  |  MAPPO: 59%
+  OpenAI-5.2-Low: 52%  |  NFSP: 34%  |  EF1: 7%
+  Walk/Tough/Soft: ~0%
+
+PSRO is almost always part of the recurrent core. The others fluctuate —
+in some bootstrap samples they're in the cycle, in others they're transient.
+
+Causal effects (delta-pi when adding each candidate):
+
+  The strongest effects:
+  - Adding PSRO: PPO's pi drops by 0.48, PSRO gains 0.38
+    -> PSRO directly steals meta share from PPO
+  - Adding Soft: PSRO's pi drops by 0.21
+    -> Soft disrupts the PSRO-dominated meta even though Soft itself stays transient
+  - Adding Tough: PSRO's pi drops by 0.31
+    -> Similar disruptor role
+
+  These are causal claims: do(add PSRO) changes the transition matrix,
+  which changes pi. It's not just correlation in the payoff matrix.
+
+Spectral gap: mean = 0.35, CI = [0.00, 0.83]
+  High variance. Some bootstrap samples have near-zero gap (chain barely
+  mixes — meta gets stuck), others have gap near 1 (meta cycles rapidly).
+
+MFPT (recurrent core only):
+  PPO -> PSRO:      3.2 steps (fastest — PPO quickly gives way to PSRO)
+  PSRO -> MAPPO:    3.9 steps
+  PSRO -> PPO:      5.6 steps
+  MAPPO -> PPO:     6.8 steps (slowest — MAPPO doesn't easily lead to PPO)
+
+
+Figures
+-------
+Fig 7 (fig7_stationary_vs_mene.png):
+  Grouped bar chart comparing stationary distribution pi (bars with 95% CI)
+  to MENE equilibrium sigma (diamond markers). Shows the pi-vs-sigma
+  disagreement for PPO and PSRO.
+
+Fig 9 (fig9_delta_pi_heatmap.png):
+  Heatmap where row = candidate added, col = strategy affected, cell = mean
+  change in stationary distribution. Red = pi increases, blue = pi decreases.
+  This is the core causal figure: it shows how each agent reshapes the
+  long-run meta when introduced.
+
+
+Why this matters
+----------------
+The MENE equilibrium (sigma) answers "what's the Nash equilibrium of the
+meta-game?" — a static concept. The stationary distribution (pi) answers
+"where does best-response dynamics actually converge?" — a dynamic concept.
+They can disagree, and the disagreement is informative:
+
+- PPO has high sigma but lower pi: it's a strong equilibrium strategy but
+  the dynamics don't stay there. Other strategies are best responses to PPO,
+  so the meta moves on.
+
+- PSRO has high pi and moderately high sigma: it's both an equilibrium
+  strategy and a dynamical attractor. The meta keeps coming back to it.
+
+The causal intervention (adding/removing agents and tracking delta-pi) goes
+further: it tells you which agents are *responsible* for the meta structure.
+Removing PSRO doesn't just remove its pi mass — it fundamentally changes
+where everyone else ends up.

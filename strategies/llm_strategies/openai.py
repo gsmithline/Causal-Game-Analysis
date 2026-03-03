@@ -234,8 +234,8 @@ class OpenAIPolicy(nn.Module):
             with open(_KEY_FILE) as f:
                 api_key = f.read().strip()
         self._api_key = api_key
-        self.client = OpenAI(api_key=api_key)  # type: ignore
-        self._last_trace = None  # stores most recent (prompt, response, action) for logging
+        self.client = OpenAI(api_key=api_key)  
+        self._last_trace = None  
 
     def __deepcopy__(self, memo):
         """Create a fresh instance to avoid pickling the httpx client."""

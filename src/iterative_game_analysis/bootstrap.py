@@ -1,13 +1,10 @@
 """Bootstrap resampling for uncertainty quantification."""
-
 from __future__ import annotations
-
 from typing import TYPE_CHECKING, Callable, Generic, TypeVar
 
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-
 from iterative_game_analysis.metagame import MetaGame
 from iterative_game_analysis.utils import compute_regret
 
@@ -15,6 +12,18 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 T = TypeVar("T")
+import itertools
+
+from iterative_game_analysis.analysis import shapley_value, banzhaf_value
+from iterative_game_analysis.utils import l1_norm
+
+
+def _solve_coalition(args):
+    """Worker: solve equilibrium for one coalition. Top-level for pickling."""
+    coalition_key, policy_subset, sub_payoff, solver = args
+    sub_game = MetaGame(policy_subset, sub_payoff)
+    sigma = sub_game.solve(solver)
+    return coalition_key, sigma
 
 
 class Bootstrap(Generic[T]):
@@ -185,9 +194,10 @@ class Bootstrap(Generic[T]):
         solver: str = "mene",
         include_l3: bool = True,
         l3_method: str = "both",
-        l3_exact: bool = False,
+        l3_exact: bool = True,
         l3_n_samples: int = 1000,
         progress: bool = True,
+        n_workers: int = 1,
     ) -> list[dict]:
         """Run full L1/L2/L3 analysis on each bootstrap sample.
 
@@ -211,6 +221,7 @@ class Bootstrap(Generic[T]):
                 If False, use Monte Carlo approximation.
             l3_n_samples: Number of samples for Monte Carlo L3 approximation.
             progress: If True, show tqdm progress bar.
+            n_workers: Number of parallel workers for L3 coalition solves.
 
         Returns:
             List of dicts, one per bootstrap sample, each containing:
@@ -235,6 +246,7 @@ class Bootstrap(Generic[T]):
                 l3_method=l3_method,
                 l3_exact=l3_exact,
                 l3_n_samples=l3_n_samples,
+                n_workers=n_workers,
             )
             results.append(sample_result)
 
@@ -245,18 +257,19 @@ class Bootstrap(Generic[T]):
     ) -> dict[str, NDArray[np.floating]]:
         """Build all metric matrices from resampled DataFrame.
 
-        Constructs four matrices from the bargaining instance data:
+        Constructs matrices from the bargaining instance data:
         - payoff: Expected payoff for policy_i (used for equilibrium + UW)
         - nw: Per-instance Nash welfare, averaged per pair
         - nw_plus: Per-instance NW on advantages, averaged per pair
         - ef1: EF1 frequency per pair
+        - ef1_plus: EF1+ frequency per pair (rational games only)
 
         Args:
             df: Resampled DataFrame with bargaining instances.
             policies: List of policies (defines matrix ordering).
 
         Returns:
-            Dict with 'payoff', 'nw', 'nw_plus', 'ef1' matrices.
+            Dict with 'payoff', 'nw', 'nw_plus', 'ef1', 'ef1_plus' matrices.
         """
         n = len(policies)
         policy_to_idx = {p: i for i, p in enumerate(policies)}
@@ -266,32 +279,34 @@ class Bootstrap(Generic[T]):
         nw_matrix = np.full((n, n), np.nan)
         nw_plus_matrix = np.full((n, n), np.nan)
         ef1_matrix = np.full((n, n), np.nan)
+        ef1_plus_matrix = np.full((n, n), np.nan)
         counts_matrix = np.zeros((n, n), dtype=np.int64)
 
-        # Compute per-instance metrics
         df = df.copy()
 
-        # Nash welfare: sqrt(payoff_i * payoff_j)
         df["_nw"] = np.sqrt(
             np.maximum(df[self.payoff_i_col], 0) *
             np.maximum(df[self.payoff_j_col], 0)
         )
 
-        # Advantages: max(0, payoff - batna)
+
         df["_adv_i"] = np.maximum(0, df[self.payoff_i_col] - df[self.batna_i_col])
         df["_adv_j"] = np.maximum(0, df[self.payoff_j_col] - df[self.batna_j_col])
 
-        # NW+: sqrt(advantage_i * advantage_j)
         df["_nw_plus"] = np.sqrt(df["_adv_i"] * df["_adv_j"])
 
-        # Aggregate by policy pair
-        grouped = df.groupby([self.policy_i_col, self.policy_j_col]).agg(
-            payoff=(self.payoff_i_col, "mean"),
-            nw=("_nw", "mean"),
-            nw_plus=("_nw_plus", "mean"),
-            ef1=(self.ef1_col, "mean"),
-            count=(self.payoff_i_col, "count"),
-        )
+        has_ef1_plus = "ef1_plus" in df.columns
+        agg_dict = {
+            "payoff": (self.payoff_i_col, "mean"),
+            "nw": ("_nw", "mean"),
+            "nw_plus": ("_nw_plus", "mean"),
+            "ef1": (self.ef1_col, "mean"),
+            "count": (self.payoff_i_col, "count"),
+        }
+        if has_ef1_plus:
+            agg_dict["ef1_plus"] = ("ef1_plus", "mean")
+
+        grouped = df.groupby([self.policy_i_col, self.policy_j_col]).agg(**agg_dict)
 
         for (pi, pj), row in grouped.iterrows():
             if pi in policy_to_idx and pj in policy_to_idx:
@@ -301,12 +316,15 @@ class Bootstrap(Generic[T]):
                 nw_plus_matrix[i, j] = row["nw_plus"]
                 ef1_matrix[i, j] = row["ef1"]
                 counts_matrix[i, j] = row["count"]
+                if has_ef1_plus:
+                    ef1_plus_matrix[i, j] = row["ef1_plus"]
 
         return {
             "payoff": payoff_matrix,
             "nw": nw_matrix,
             "nw_plus": nw_plus_matrix,
             "ef1": ef1_matrix,
+            "ef1_plus": ef1_plus_matrix,
             "counts": counts_matrix,
         }
 
@@ -388,6 +406,160 @@ class Bootstrap(Generic[T]):
             for key, matrix in matrices.items()
         }
 
+    def _banzhaf_with_coalitions(
+        self,
+        policies: list[str],
+        wf_matrices: dict[str, NDArray[np.floating]],
+        equilibrium_cache: dict[frozenset, NDArray[np.floating]],
+        value_table: dict[str, dict[frozenset, float]],
+    ) -> dict:
+        """Compute exact Banzhaf values while logging per-coalition details.
+
+        For each policy and each coalition S (subset of others), records:
+        - The coalition members
+        - The equilibrium over S and S+{policy}
+        - The marginal contribution v(S+{policy}) - v(S) for each welfare fn
+
+        Args:
+            policies: List of all policy names.
+            wf_matrices: Dict mapping welfare name to its matrix.
+            equilibrium_cache: Pre-computed equilibria per coalition.
+            value_table: Pre-computed values: wf_name -> {coalition -> float}.
+
+        Returns:
+            Dict with:
+            - "banzhaf_values": {wf: {policy: float}} averaged Banzhaf values
+            - "coalitions": list of coalition records
+        """
+        n = len(policies)
+        coalition_records = []
+        banzhaf_sums = {wf: {p: 0.0 for p in policies} for wf in wf_matrices}
+
+        for policy in policies:
+            others = [p for p in policies if p != policy]
+            for r in range(len(others) + 1):
+                for subset in itertools.combinations(others, r):
+                    S = sorted(subset)
+                    S_with = sorted(S + [policy])
+                    key_s = frozenset(S)
+                    key_sw = frozenset(S_with)
+
+                    # Value for S (without policy)
+                    if len(S) == 0:
+                        v_without = {wf: 0.0 for wf in wf_matrices}
+                        sigma_without_dict = {}
+                    else:
+                        sigma_s = equilibrium_cache[key_s]
+                        sigma_without_dict = {
+                            p: float(sigma_s[i]) for i, p in enumerate(S)
+                        }
+                        v_without = {
+                            wf: value_table[wf][key_s] for wf in wf_matrices
+                        }
+
+                    # Value for S + {policy}
+                    sigma_sw = equilibrium_cache[key_sw]
+                    sigma_with_dict = {
+                        p: float(sigma_sw[i]) for i, p in enumerate(S_with)
+                    }
+                    v_with = {
+                        wf: value_table[wf][key_sw] for wf in wf_matrices
+                    }
+
+                    # Marginal contributions
+                    marginals = {
+                        wf: v_with[wf] - v_without[wf] for wf in wf_matrices
+                    }
+                    for wf in wf_matrices:
+                        banzhaf_sums[wf][policy] += marginals[wf]
+
+                    coalition_records.append({
+                        "policy": policy,
+                        "coalition_without": S,
+                        "coalition_with": S_with,
+                        "sigma_without": sigma_without_dict,
+                        "sigma_with": sigma_with_dict,
+                        "marginals": marginals,
+                    })
+
+        # Average over 2^(n-1) coalitions
+        n_coalitions = 2 ** (n - 1)
+        banzhaf_values = {
+            wf: {p: banzhaf_sums[wf][p] / n_coalitions for p in policies}
+            for wf in wf_matrices
+        }
+
+        return {
+            "banzhaf_values": banzhaf_values,
+            "coalitions": coalition_records,
+        }
+    
+    def get_cached_equilibrium(self,
+                                policy_subset: list[str],
+                                metagame: MetaGame,
+                                equilibrium_cache: dict[frozenset, NDArray[np.floating]],
+                                matrices: dict[str, NDArray[np.floating]],
+                                solver: str,
+                                ) -> NDArray[np.floating]:
+        """Get equilibrium for a coalition, using cache.
+
+        Always sorts policy_subset to ensure consistent ordering
+        between cache writes and reads (sigma indices match matrix indices).
+        """
+        policy_subset = sorted(policy_subset)
+        key = frozenset(policy_subset)
+        if key not in equilibrium_cache:
+            indices = [metagame.policy_index(p) for p in policy_subset]
+            sub_payoff = matrices["payoff"][np.ix_(indices, indices)]
+            sub_game = MetaGame(policy_subset, sub_payoff)
+            equilibrium_cache[key] = sub_game.solve(solver)
+        return equilibrium_cache[key]
+
+    def _precompute_all_equilibria(
+        self,
+        policies: list[str],
+        matrices: dict[str, "NDArray[np.floating]"],
+        metagame: MetaGame,
+        solver: str,
+        n_workers: int,
+    ) -> dict[frozenset, "NDArray[np.floating]"]:
+        """Pre-compute equilibria for all 2^N non-empty coalitions.
+
+        Args:
+            policies: List of all policy names.
+            matrices: All metric matrices (needs 'payoff' for subgames).
+            metagame: Full MetaGame (for policy_index lookups).
+            solver: Equilibrium solver name.
+            n_workers: Number of parallel workers (1 = sequential).
+
+        Returns:
+            Dict mapping frozenset(coalition) -> equilibrium sigma.
+        """
+        # Enumerate all non-empty subsets
+        tasks = []
+        for r in range(1, len(policies) + 1):
+            for subset in itertools.combinations(policies, r):
+                policy_subset = sorted(subset)
+                key = frozenset(policy_subset)
+                indices = [metagame.policy_index(p) for p in policy_subset]
+                sub_payoff = matrices["payoff"][np.ix_(indices, indices)]
+                tasks.append((key, policy_subset, sub_payoff, solver))
+
+        cache: dict[frozenset, NDArray[np.floating]] = {}
+
+        if n_workers <= 1:
+            # Sequential fallback
+            for task in tasks:
+                key, sigma = _solve_coalition(task)
+                cache[key] = sigma
+        else:
+            from multiprocessing import Pool
+            with Pool(n_workers) as pool:
+                for key, sigma in pool.imap_unordered(_solve_coalition, tasks):
+                    cache[key] = sigma
+
+        return cache
+
     def _compute_l3_with_cache(
         self,
         metagame: MetaGame,
@@ -397,6 +569,7 @@ class Bootstrap(Generic[T]):
         l3_method: str,
         l3_exact: bool,
         l3_n_samples: int,
+        n_workers: int = 1,
     ) -> dict:
         """Compute L3 attribution with cached equilibrium solves.
 
@@ -412,43 +585,16 @@ class Bootstrap(Generic[T]):
             l3_method: "shapley", "banzhaf", or "both".
             l3_exact: Whether to use exact computation.
             l3_n_samples: Number of Monte Carlo samples if not exact.
+            n_workers: Number of parallel workers for coalition solves.
 
         Returns:
             Dict with Shapley/Banzhaf values for each welfare function.
         """
-        from iterative_game_analysis.analysis import (
-            shapley_value,
-            banzhaf_value,
+
+        # Pre-compute all coalition equilibria (parallel if n_workers > 1)
+        equilibrium_cache = self._precompute_all_equilibria(
+            policies, matrices, metagame, solver, n_workers,
         )
-
-        # Cache: coalition (frozenset) -> equilibrium sigma
-        equilibrium_cache: dict[frozenset, NDArray[np.floating]] = {}
-
-        def get_cached_equilibrium(policy_subset: list[str]) -> NDArray[np.floating]:
-            """Get equilibrium for a coalition, using cache."""
-            key = frozenset(policy_subset)
-            if key not in equilibrium_cache:
-                indices = [metagame.policy_index(p) for p in policy_subset]
-                sub_payoff = matrices["payoff"][np.ix_(indices, indices)]
-                sub_game = MetaGame(policy_subset, sub_payoff)
-                equilibrium_cache[key] = sub_game.solve(solver)
-            return equilibrium_cache[key]
-
-        def make_cached_value_fn(wf_matrix: NDArray[np.floating]):
-            """Create a value function that uses cached equilibria."""
-            def value_fn(policy_subset: list[str]) -> float:
-                if len(policy_subset) == 0:
-                    return 0.0
-                sigma_sub = get_cached_equilibrium(policy_subset)
-                indices = [metagame.policy_index(p) for p in policy_subset]
-                sub_matrix = wf_matrix[np.ix_(indices, indices)]
-                # NOTE: NaN→0 is lossy for EF1 — see _compute_ef1_at_equilibrium.
-                sub_matrix_clean = np.nan_to_num(sub_matrix, nan=0.0)
-                return float(sigma_sub @ sub_matrix_clean @ sigma_sub)
-            return value_fn
-
-        l3_result = {}
-        n_mc = None if l3_exact else l3_n_samples
 
         # Map welfare function names to their matrices
         wf_matrices = {
@@ -456,19 +602,51 @@ class Bootstrap(Generic[T]):
             "nw": matrices["nw"],
             "nw_plus": matrices["nw_plus"],
             "ef1": matrices["ef1"],
+            "ef1_plus": matrices["ef1_plus"],
         }
 
-        # Compute Shapley for all welfare functions (shares cache)
+        # Pre-compute value table: wf_name -> {coalition_key -> float}
+        # 1024 coalitions × 5 welfare fns = 5120 entries, computed once
+        value_table: dict[str, dict[frozenset, float]] = {}
+        for wf_name, wf_matrix in wf_matrices.items():
+            wf_values: dict[frozenset, float] = {}
+            for key, sigma in equilibrium_cache.items():
+                policy_subset = sorted(key)
+                indices = [metagame.policy_index(p) for p in policy_subset]
+                sub = wf_matrix[np.ix_(indices, indices)]
+                sub_clean = np.nan_to_num(sub, nan=0.0)
+                wf_values[key] = float(sigma @ sub_clean @ sigma)
+            value_table[wf_name] = wf_values
+
+        def make_cached_value_fn(wf_name: str):
+            """Create a value function backed by the pre-computed table."""
+            wf_values = value_table[wf_name]
+            def value_fn(policy_subset: list[str]) -> float:
+                if len(policy_subset) == 0:
+                    return 0.0
+                return wf_values[frozenset(policy_subset)]
+            return value_fn
+
+        l3_result = {}
+        n_mc = None if l3_exact else l3_n_samples
+
+        # Compute Shapley for all welfare functions (pure dict lookups)
         if l3_method in ["shapley", "both"]:
-            for wf, wf_matrix in wf_matrices.items():
-                value_fn = make_cached_value_fn(wf_matrix)
+            for wf in wf_matrices:
+                value_fn = make_cached_value_fn(wf)
                 l3_result[f"shapley_{wf}"] = shapley_value(policies, value_fn, n_mc)
 
-        # Compute Banzhaf for all welfare functions (shares cache)
+        # Compute Banzhaf for all welfare functions with coalition logging
         if l3_method in ["banzhaf", "both"]:
-            for wf, wf_matrix in wf_matrices.items():
-                value_fn = make_cached_value_fn(wf_matrix)
-                l3_result[f"banzhaf_{wf}"] = banzhaf_value(policies, value_fn, n_mc)
+            coalition_log = self._banzhaf_with_coalitions(
+                policies=policies,
+                wf_matrices=wf_matrices,
+                equilibrium_cache=equilibrium_cache,
+                value_table=value_table,
+            )
+            for wf in wf_matrices:
+                l3_result[f"banzhaf_{wf}"] = coalition_log["banzhaf_values"][wf]
+            l3_result["coalition_details"] = coalition_log["coalitions"]
 
         return l3_result
 
@@ -479,17 +657,13 @@ class Bootstrap(Generic[T]):
         l3_method: str,
         l3_exact: bool,
         l3_n_samples: int,
+        n_workers: int = 1,
     ) -> dict:
         """Run full analysis on a single bootstrap sample.
 
         This is the core method that performs L1, L2, L3, and EF1 analysis
         for one resampled meta-game.
         """
-        from iterative_game_analysis.analysis import (
-            shapley_value,
-            banzhaf_value,
-        )
-        from iterative_game_analysis.utils import l1_norm
 
         # 1. Resample and build all matrices
         resampled_df = self.sample()
@@ -513,6 +687,7 @@ class Bootstrap(Generic[T]):
             "nw": np.nan_to_num(matrices["nw"], nan=0.0),
             "nw_plus": np.nan_to_num(matrices["nw_plus"], nan=0.0),
             "ef1": np.nan_to_num(matrices["ef1"], nan=0.0),
+            "ef1_plus": np.nan_to_num(matrices["ef1_plus"], nan=0.0),
         }
 
         # 3. Full game analysis
@@ -522,8 +697,8 @@ class Bootstrap(Generic[T]):
         )
         welfare_full = self._compute_welfare_all(sigma_full, matrices)
         ef1_full = self._compute_ef1_at_equilibrium(matrices["ef1"], sigma_full)
+        ef1_plus_full = self._compute_ef1_at_equilibrium(matrices["ef1_plus"], sigma_full)
 
-        # Per-agent expected value at equilibrium for every metric
         per_agent_values_full = {}
         for metric_name, M in metric_matrices.items():
             per_agent_values_full[metric_name] = {
@@ -536,6 +711,7 @@ class Bootstrap(Generic[T]):
             "regret": {p: float(regret_full[i]) for i, p in enumerate(policies)},
             "welfare": welfare_full,
             "ef1": ef1_full,
+            "ef1_plus": ef1_plus_full,
             "nash_value": nash_value_full,
             "per_agent_values": per_agent_values_full,
         }
@@ -565,21 +741,22 @@ class Bootstrap(Generic[T]):
                 sigma_B, baseline_game.payoff_matrix
             )
 
-            # Welfare in baseline game (using subsetted matrices)
+            #welfare in baseline game (using subsetted matrices)
             welfare_B = self._compute_welfare_all(sigma_B, baseline_matrices)
 
-            # EF1 in baseline game
+            #EF1 in baseline game
             ef1_B = self._compute_ef1_at_equilibrium(baseline_matrices["ef1"], sigma_B)
+            ef1_plus_B = self._compute_ef1_at_equilibrium(baseline_matrices["ef1_plus"], sigma_B)
 
-            # --- L1: Partner lift for each incumbent, all metrics ---
-            # Expand sigma_B to full game indices
+            #L1: Partner lift for each incumbent, all metrics ---
+            #expand sigma_B to full game indices
             sigma_B_full = np.zeros(metagame.n_policies)
             for i, p in enumerate(baseline_policies):
                 sigma_B_full[metagame.policy_index(p)] = sigma_B[i]
 
             sigma_B_dict = {p: sigma_B[i] for i, p in enumerate(baseline_policies)}
 
-            # Compute partner lift for every metric matrix
+            #compute partner lift for every metric matrix
             per_incumbent_lift = {}  # metric -> {incumbent -> lift}
             lift_aggregations = {}   # metric -> {uniform_avg, eq_avg, min, max}
             per_agent_values_B = {}  # metric -> {agent -> value at baseline eq}
@@ -617,6 +794,7 @@ class Bootstrap(Generic[T]):
                 "regret_B": {p: float(regret_B[i]) for i, p in enumerate(baseline_policies)},
                 "welfare_B": welfare_B,
                 "ef1_B": ef1_B,
+                "ef1_plus_B": ef1_plus_B,
             }
 
             # --- L2: Ecosystem lift ---
@@ -625,18 +803,18 @@ class Bootstrap(Generic[T]):
                 wf: welfare_full[wf] - welfare_B[wf] for wf in ["uw", "nw", "nw_plus"]
             }
 
-            # Entry mass: equilibrium weight of candidate in full game
+            #entry mass: equilibrium weight of candidate in full game
             entry_mass = float(sigma_full[candidate_idx])
 
-            # Equilibrium shift: compare sigma_B to sigma_full restricted to baseline
+            #equilibrium shift: compare sigma_B to sigma_full restricted to baseline
             sigma_full_restricted = np.array([
                 sigma_full[metagame.policy_index(p)] for p in baseline_policies
             ])
             equilibrium_shift = l1_norm(sigma_full_restricted, sigma_B)
 
-            # Incumbent value shifts for every metric
-            incumbent_shifts = {}  # metric -> {incumbent -> shift}
-            per_agent_values_full = {}  # metric -> {incumbent -> value at full eq}
+            #incumbent value shifts for every metric
+            incumbent_shifts = {}  #metric -> {incumbent -> shift}
+            per_agent_values_full = {}  #metric -> {incumbent -> value at full eq}
             for metric_name, M in metric_matrices.items():
                 per_metric_shifts = {}
                 per_metric_values_full = {}
@@ -662,6 +840,7 @@ class Bootstrap(Generic[T]):
                 "incumbent_shifts": incumbent_shifts,
                 "per_agent_values_full": per_agent_values_full,
                 "ef1_lift": ef1_full - ef1_B,
+                "ef1_plus_lift": ef1_plus_full - ef1_plus_B,
             }
 
         # 5. Level 3: Attribution (if requested)
@@ -675,11 +854,13 @@ class Bootstrap(Generic[T]):
                 l3_method=l3_method,
                 l3_exact=l3_exact,
                 l3_n_samples=l3_n_samples,
+                n_workers=n_workers,
             )
             l3_result["total_value"] = {
                 wf: welfare_full[wf] for wf in ["uw", "nw", "nw_plus"]
             }
             l3_result["total_value"]["ef1"] = ef1_full
+            l3_result["total_value"]["ef1_plus"] = ef1_plus_full
 
         return {
             "l1": l1_results,

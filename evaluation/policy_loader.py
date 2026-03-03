@@ -24,6 +24,7 @@ from strategies.walk.policy import WalkPolicy
 from strategies.soft.policy import SoftPolicy
 from strategies.tough.policy import ToughPolicy
 from strategies.llm_strategies.openai import OpenAIPolicy
+from strategies.ef1_bargainer.ef1_agent import EF1Agent, EF1Policy
 
 class MixturePolicy(nn.Module):
     """
@@ -303,10 +304,10 @@ def load_psro_strategy(name: str, path: Path, use_mixture: bool = True) -> Strat
 
         print(f"  Loaded PSRO mixture with {len(p1_policies)} P1 policies and {len(p2_policies)} P2 policies")
 
+
         return Strategy(name=name, p1_policy=p1_mixture, p2_policy=p2_mixture,
                        algorithm="psro", is_mixture=True)
     else:
-        # Fallback: just use the last policy
         if not use_mixture:
             print(f"  Warning: Loading only last PSRO policy (not the mixture)")
         else:
@@ -372,6 +373,27 @@ def load_tough_strategy(name: str, path: Path) -> Strategy:
 
     return Strategy(name=name, p1_policy=p1_policy, p2_policy=p2_policy, algorithm="tough")
 
+def load_ef1_policy(name: str, path: Path) -> Strategy:
+    """
+    Load in ef1 bargainer strategy.
+
+    1. Find all allocations where the agent satisfies EF1
+    2. Among those find the pareto frontier of offers giving the opponent the most items
+    3. Open with the most generous frontier offer (max total items to oppent)
+    4. Accept any counteroffer that is EF1 and beats the outside option
+    5. Counter with a different fronteir offer if the opponent's offer is not EF1
+    6. Walk if no EF1 deal beats the outside option
+    """
+
+    p1_policy = EF1Policy()
+    p2_policy = EF1Policy()
+
+    p1_policy.eval()
+    p2_policy.eval()
+
+
+    return Strategy(name=name, p1_policy=p1_policy, p2_policy=p2_policy, algorithm="ef1_bargainer")
+
 
 def load_openai_strategy(name: str, path: Path, model: str = "5.2",
                          reasoning_effort: str = "none") -> Strategy:
@@ -418,6 +440,7 @@ STRATEGY_LOADERS: Dict[str, Callable] = {
     "soft": load_soft_strategy,
     "tough": load_tough_strategy,
     "llm_strategies": load_openai_strategy,
+    "ef1_bargainer": load_ef1_policy
 }
 
 

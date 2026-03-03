@@ -221,6 +221,8 @@ game = MetaGame(
 | `ecosystem_lift()` | 2 | Ecosystem Lift (with re-equilibration) |
 | `shapley_value()` | 3 | Shapley attribution values |
 | `banzhaf_value()` | 3 | Banzhaf attribution values |
+| `compute_curb_banzhaf()` | 3+ | CURB-gated Banzhaf (restricted to CURB coalitions) |
+| `find_all_curb_sets()` | 3+ | Enumerate all CURB sets of the meta-game |
 
 ### Welfare Metrics
 
@@ -521,15 +523,181 @@ v(X) := W(X) = Φ(Ĝ_{S↓X}, σ_X), where σ_X = S(Ĝ_{S↓X})
 
 where ≺ is a uniform random ordering of S, and Pred_≺(s) denotes the set of strategies preceding s under ≺.
 
+#### The Problem: Averaging Over Incoherent Subgames
+
+Standard Shapley/Banzhaf averages marginal contributions over all 2^n coalitions. Most of these coalitions are **strategically incoherent** — no rational agent would confine play to them. If π_k ∉ X is a best response to every mixture over X, then the restricted equilibrium σ_X is an artifact of an artificial restriction, and v(X) does not correspond to any plausible interaction scenario.
+
+Full subgame consistency of power indices across all subgames is provably unachievable (Haimanko, 2025). This motivates restricting attribution to **self-enforcing** strategy sets: if players are confined to X, no rational deviation leads outside X. These are precisely the CURB sets.
+
+---
+
+### Level 3+: CURB-Gated Attribution
+
+CURB-gated attribution restricts the Level 3 coalition space to strategically coherent subsets, yielding credit assignments grounded in ecologies that could actually arise under rational learning dynamics.
+
+#### CURB Sets
+
+**Conditional Best Response.** For X ⊆ S in the symmetric game (S, u):
+
+```
+CBR(X) := {π ∈ S : ∃ σ ∈ Δ(X) s.t. π ∈ argmax_{π' ∈ S} E_{π'' ~ σ}[u(π', π'')]}
+```
+
+The set of all pure strategies that are best responses to some mixture over X.
+
+**CURB Set (Basu & Weibull, 1991).** A non-empty subset C ⊆ S is **Closed Under Rational Behavior** if:
+
+```
+CBR(C) ⊆ C
+```
+
+No best response to any mixture over C lies outside C. Equivalently, C is self-sustaining: rational play within C stays within C.
+
+**Key structural properties:**
+
+| Property | Statement | Consequence |
+|----------|-----------|-------------|
+| Intersection-closed | C₁, C₂ CURB, C₁ ∩ C₂ ≠ ∅ ⟹ C₁ ∩ C₂ CURB | Meet = intersection |
+| Full game is CURB | S is always CURB | Top element exists |
+| Lattice structure | (C(G) ∪ {∅}, ⊆) is a complete lattice | Join = CURB closure of union |
+| Minimal disjointness | Distinct minimal CURB sets are disjoint | Clean attractor partition |
+| Learning absorption | CURB sets are absorbing under best-response dynamics | Dynamic foundation (Hurkens 1995, Young 1993) |
+
+**CURB Closure.** For any X ⊆ S, define cl(X) := ∩{C ∈ C(G) : X ⊆ C}, the smallest CURB set containing X. Well-defined by intersection closure.
+
+**Minimal CURB Sets.** A CURB set M is minimal if no proper non-empty subset of M is CURB. These are the **attractors** of the meta-game — the irreducible self-sustaining ecologies.
+
+#### Finding CURB Sets via LP
+
+To check whether a subset C ⊆ S is CURB, we need to compute CBR(C) and verify CBR(C) ⊆ C. For each candidate strategy πᵢ ∈ S, we check whether πᵢ is a best response to *some* mixture over C. This is a linear programming feasibility problem.
+
+**LP for "πᵢ ∈ CBR(C)?":** Find σ ∈ Δ(C) such that πᵢ is a best response against σ:
+
+```
+Find σⱼ ≥ 0 for j ∈ C,  Σⱼ σⱼ = 1
+
+subject to:  Σⱼ σⱼ · u(πᵢ, πⱼ) ≥ Σⱼ σⱼ · u(πₖ, πⱼ)   ∀ πₖ ∈ S
+```
+
+Equivalently, for each competitor πₖ ≠ πᵢ:
+
+```
+Σⱼ∈C σⱼ · [u(πₖ, πⱼ) − u(πᵢ, πⱼ)] ≤ 0
+```
+
+If the LP is feasible, then πᵢ ∈ CBR(C) — there exists a belief over C making πᵢ optimal. If infeasible, πᵢ is never a best response to any mixture over C.
+
+**Checking CBR(C) ⊆ C:** Run the LP for every πᵢ ∈ S. If every feasible πᵢ is already in C, then C is CURB.
+
+**Enumeration.** For n strategies, we check all 2^n − 1 non-empty subsets (brute-force). Each check runs n LPs (one per candidate strategy), each with |C| variables and n − 1 inequality constraints. For n ≤ 10 (1023 subsets), this is tractable.
+
+**Enumeration.** We brute-force check all 2^n − 1 non-empty subsets, running the LP-based CBR check on each. For n ≤ 10 (1023 subsets) this is tractable. Minimal CURB sets are then filtered as those with no proper CURB subset.
+
+#### CURB-Banzhaf
+
+Uses CURB sets as the coalition pool for Banzhaf. For each strategy π_i, averages marginal contributions only over CURB sets containing π_i:
+
+```
+β^CURB(πᵢ) := (1/|{C ∈ C(G) : πᵢ ∈ C}|) Σ_{C ∈ C(G), πᵢ ∈ C} [v(C) − v(C \ {πᵢ})]
+```
+
+Each marginal v(C) − v(C \ {πᵢ}) is evaluated at a CURB set C (strategically coherent "with" coalition). Note: C \ {πᵢ} need not itself be CURB.
+
+**Properties:**
+- Strategically coherent coalition pool — only self-enforcing ecologies contribute to attribution
+- Does **not** satisfy efficiency: Σᵢ β^CURB(πᵢ) ≠ v(S) in general
+- Computationally cheaper than standard Banzhaf: solves equilibria only for |C(G)| CURB sets plus their "minus-one" variants, versus all 2^n subsets
+
+#### CURB-Shapley (Lattice Shapley) — Under Investigation
+
+> **Status:** Theoretical feasibility is under investigation. The CURB lattice may not satisfy the distributivity requirement of the Faigle-Kern framework in all games, and the equal-split rule for co-entering strategies needs further justification. The definitions below are provisional.
+
+To obtain an efficient attribution (values summing to v(S)), one could apply the Faigle-Kern (1992) lattice Shapley value to the CURB lattice.
+
+**Maximal chains.** A maximal chain in the CURB lattice is a sequence of nested CURB sets with no intermediate CURB set between consecutive elements:
+
+```
+c : ∅ = C₀ ⊂ C₁ ⊂ C₂ ⊂ ... ⊂ Cₘ = S
+```
+
+Each chain represents a "strategically coherent build-up" of the full library: at each step, the library grows from one CURB set to the next smallest CURB set containing it.
+
+**CURB-Shapley value.** For strategy πᵢ, average its marginal contribution across all maximal chains:
+
+```
+φ^CURB(πᵢ) := (1/|M(C(G))|) Σ_{c ∈ M(C(G))} δᵢ(c)
+```
+
+where δᵢ(c) is πᵢ's marginal along chain c. If πᵢ enters at step j* (πᵢ ∈ C_{j*} \ C_{j*-1}), the value gain is split equally among all co-entering strategies:
+
+```
+δᵢ(c) := [v(C_{j*}) − v(C_{j*-1})] / |C_{j*} \ C_{j*-1}|
+```
+
+Multiple strategies may enter simultaneously at a step because no CURB set separates them — they are "CURB-linked."
+
+**Properties:**
+
+| Property | Statement |
+|----------|-----------|
+| Efficiency | Σᵢ φ^CURB(πᵢ) = v(S) − v(∅) |
+| Equal treatment | CURB-linked strategies (no CURB set separates them) receive equal credit |
+| Null strategy | If πᵢ's entry never changes v at any covering step, φ^CURB(πᵢ) = 0 |
+| Additivity | φ^CURB(πᵢ; v₁ + v₂) = φ^CURB(πᵢ; v₁) + φ^CURB(πᵢ; v₂) |
+| Uniqueness | CURB-Shapley is the unique value satisfying these axioms on the CURB lattice (Faigle-Kern) |
+
+#### CURB-Banzhaf vs CURB-Shapley
+
+| | CURB-Banzhaf | CURB-Shapley |
+|--|--|--|
+| Coalitions averaged over | All CURB sets containing πᵢ | All maximal chains in CURB lattice |
+| Sums to v(S)? | No | Yes |
+| CURB-linked strategies | Independent marginals | Equal credit (co-enter at every chain step) |
+| Interpretation | Ranking by marginal impact in stable ecologies | Welfare share decomposition through coherent formation paths |
+| Best for | "Which strategies matter most?" | "What fraction of total welfare does each strategy account for?" |
+
+#### CURB Analysis Pipeline
+
+The CURB analysis pipeline (`evaluation/curb_analysis.py`) runs per-bootstrap:
+
+1. **Enumerate CURB sets** — check all 2^n − 1 subsets for the CURB property (or use closure-based pruning)
+2. **Compute equilibria** — solve MENE on each CURB set and its "minus-one" variants
+3. **CURB-Banzhaf** — average marginals per strategy across CURB sets
+4. **Bootstrap aggregation** — confidence intervals across 1000 resampled empirical games
+
+```bash
+# Full CURB analysis (enumeration + metrics)
+python evaluation/curb_analysis.py
+
+# CURB-Banzhaf only (uses existing curb_results.pkl)
+python evaluation/curb_analysis.py --banzhaf
+
+# Quick test (20 bootstrap samples)
+python evaluation/curb_analysis.py --banzhaf --max-bootstrap 20
+```
+
+#### References
+
+- Basu & Weibull (1991). "Strategy Subsets Closed Under Rational Behavior." *Economics Letters* 36(2).
+- Benisch, Davis & Sandholm (2010). "Algorithms for CURB Sets." *JAIR* 38.
+- Faigle & Kern (1992). "The Shapley Value for Cooperative Games Under Precedence Constraints." *IJGT* 21(3).
+- Grabisch & Lange (2007). "Games on Lattices." *MMOR* 65.
+- Grabisch & Lange (2011). "Interaction Indices with Forbidden Coalitions." *EJOR* 214(1).
+- Haimanko (2025). "On Subgame Consistency of the SSPI." *IJGT*.
+- Hurkens (1995). "Learning by Forgetful Players." *GEB* 11.
+- Voorneveld, Kets & Norde (2005). "An Axiomatization of Minimal CURB Sets." *IJGT* 33.
+- Young (1993). "The Evolution of Conventions." *Econometrica* 61.
+
 ---
 
 ## Key Distinctions
 
-| Aspect | Level 1 | Level 2 | Level 3 |
-|--------|---------|---------|---------|
-| Strategy set | Fixed X | Expanded X⁺ | All subsets of S |
-| Equilibrium | σ_X held fixed | Recomputed σ_{X⁺} | Recomputed per subset |
-| Interpretation | Partner quality (direct effect) | Restricted game impact (with adaptation) | Synergy-aware attribution |
+| Aspect | Level 1 | Level 2 | Level 3 | Level 3+ (CURB-Gated) |
+|--------|---------|---------|---------|----------------------|
+| Strategy set | Fixed X | Expanded X⁺ | All subsets of S | CURB sets of S only |
+| Equilibrium | σ_X held fixed | Recomputed σ_{X⁺} | Recomputed per subset | Recomputed per CURB set |
+| Coalition space | N/A | N/A | 2^n (all subsets) | C(G) (self-enforcing subsets) |
+| Interpretation | Partner quality (direct effect) | Restricted game impact (with adaptation) | Synergy-aware attribution | Attribution over strategically coherent ecologies |
 
 ---
 

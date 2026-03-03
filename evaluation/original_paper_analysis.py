@@ -115,39 +115,40 @@ def exists_ef1_beating_batnas(
         for b in range(items[1] + 1)
         for c in range(items[2] + 1)
     ])
-    p2_allocs = items - all_allocs  # (80, 3)
+    p2_allocs = items - all_allocs 
 
-    # Payoffs for all allocations: (n_games, 80)
+
     p1_payoffs = utilities_p1 @ all_allocs.T
     p2_payoffs = utilities_p2 @ p2_allocs.T
 
-    # Strictly beats both BATNAs
+
+    _EPS = 1e-4
     beats_batna = (
-        (p1_payoffs > raw_batna_p1[:, None])
-        & (p2_payoffs > raw_batna_p2[:, None])
+        (p1_payoffs > raw_batna_p1[:, None] - _EPS)
+        & (p2_payoffs > raw_batna_p2[:, None] - _EPS)
     )
 
-    # --- EF1 check for P1 ---
-    p1_other_vals = utilities_p1 @ p2_allocs.T  # (n_games, 80)
-    p2_has_items = p2_allocs > 0  # (80, 3)
+
+    p1_other_vals = utilities_p1 @ p2_allocs.T  
+    p2_has_items = p2_allocs > 0 
     p1_vals_masked = np.where(
         p2_has_items[None, :, :], utilities_p1[:, None, :], 0
-    )  # (n_games, 80, 3)
-    p1_max_remove = np.max(p1_vals_masked, axis=2)  # (n_games, 80)
+    ) 
+    p1_max_remove = np.max(p1_vals_masked, axis=2)  
     p1_ef1 = p1_payoffs >= p1_other_vals - p1_max_remove
 
-    # --- EF1 check for P2 ---
-    p2_other_vals = utilities_p2 @ all_allocs.T  # (n_games, 80)
-    p1_has_items = all_allocs > 0  # (80, 3)
+
+    p2_other_vals = utilities_p2 @ all_allocs.T  
+    p1_has_items = all_allocs > 0  
     p2_vals_masked = np.where(
         p1_has_items[None, :, :], utilities_p2[:, None, :], 0
-    )  # (n_games, 80, 3)
-    p2_max_remove = np.max(p2_vals_masked, axis=2)  # (n_games, 80)
+    )  
+    p2_max_remove = np.max(p2_vals_masked, axis=2)  
     p2_ef1 = p2_payoffs >= p2_other_vals - p2_max_remove
 
-    # Exists allocation that is EF1 for both and beats both BATNAs
-    valid = p1_ef1 & p2_ef1 & beats_batna  # (n_games, 80)
-    return np.any(valid, axis=1)  # (n_games,)
+   
+    valid = p1_ef1 & p2_ef1 & beats_batna  
+    return np.any(valid, axis=1)  
 
 
 
@@ -254,8 +255,9 @@ def load_and_preprocess_data(
             raw_batna_i = batna_i * max_possible_i
             raw_batna_j = batna_j * max_possible_j
 
-            # EF1+: does the actual outcome beat both BATNAs? (raw space, strict)
-            outcome_beats_batnas = (raw_payoff_i > raw_batna_i) & (raw_payoff_j > raw_batna_j)
+            # EF1+: does the actual outcome beat both BATNAs? (raw space, with tolerance for float precision)
+            _EPS = 1e-4
+            outcome_beats_batnas = (raw_payoff_i > raw_batna_i - _EPS) & (raw_payoff_j > raw_batna_j - _EPS)
 
             # EF1+: does there exist any allocation that is EF1 and beats both BATNAs?
             ef1_rational_exists = exists_ef1_beating_batnas(
@@ -467,6 +469,11 @@ def run_bootstrap_analysis(
     sigma_samples = []
     support_counts = np.zeros(len(strategy_names), dtype=int)  # Track support frequency
 
+    # Marginal decomposition: contrib[i,j] = σⱼ · M[i,j] averaged over bootstraps
+    n = len(strategy_names)
+    contrib_metrics = ["uw", "nw", "nw_plus", "ef1", "ef1_plus"]
+    contrib_accum = {key: np.zeros((n, n)) for key in contrib_metrics}
+
     print(f"\nRunning {num_bootstrap} bootstrap samples...")
 
     for _ in tqdm(range(num_bootstrap), desc="Bootstrap"):
@@ -484,6 +491,12 @@ def run_bootstrap_analysis(
         # Track which strategies are in support (probability > 1e-6)
         support_counts += (sigma > 1e-2).astype(int)
 
+        # Accumulate marginal decomposition: contrib[i,j] = σⱼ · M[i,j]
+        for mk in contrib_metrics:
+            M = matrices[mk]
+            M_clean = np.nan_to_num(M, nan=0.0)
+            contrib_accum[mk] += M_clean * sigma[np.newaxis, :]
+
         # Compute per-agent metrics at equilibrium
         metrics = compute_metrics_at_equilibrium(sigma, matrices)
         uw_samples.append(metrics["uw"])
@@ -498,6 +511,10 @@ def run_bootstrap_analysis(
         regret_samples.append(regret_vec)
 
         sigma_samples.append(sigma.tolist())
+
+    # Average marginal contributions over bootstrap samples
+    marginal_contributions = {key: (acc / num_bootstrap).tolist()
+                              for key, acc in contrib_accum.items()}
 
     # Compute support frequency as percentage
     support_freq = {
@@ -520,6 +537,7 @@ def run_bootstrap_analysis(
             "mean": np.mean(sigma_samples, axis=0).tolist(),
             "std": np.std(sigma_samples, axis=0).tolist(),
         },
+        "marginal_contributions": marginal_contributions,
     }
 
     return results
@@ -598,6 +616,70 @@ def print_results(results: Dict) -> None:
               f"[{m['ci_lower']*100:.2f}, {m['ci_upper']*100:.2f}]")
 
 
+def plot_marginal_decomposition(results: Dict) -> None:
+    """Generate stacked bar charts showing marginal decomposition of equilibrium values.
+
+    For each strategy i, V_i = Σⱼ σⱼ · M[i,j]. Each colored segment shows
+    opponent j's contribution to i's rating.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    from visuals.visualize_analysis import (
+        STRATEGY_COLORS, DISPLAY_NAMES, STRATEGY_ORDER,
+    )
+
+    strategy_names = results["strategy_names"]
+    contrib_data = results["marginal_contributions"]
+    n = len(strategy_names)
+
+    # Metric -> (normalization divisor, display label)
+    metric_cfg = {
+        "uw":       (MAX_UW,       "Utilitarian Welfare"),
+        "nw":       (MAX_NW,       "Nash Welfare"),
+        "nw_plus":  (MAX_NW_PLUS,  "NW+"),
+        "ef1":      (1.0,          "EF1 Frequency"),
+        "ef1_plus": (1.0,          "EF1+ Frequency"),
+    }
+
+    fig_dir = Path(__file__).parent.parent / "data" / "analysis" / "figures"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
+    for metric_key, (divisor, label) in metric_cfg.items():
+        contrib = np.array(contrib_data[metric_key])  # (n, n)
+        # Normalize to percentage
+        contrib_pct = contrib / divisor * 100
+
+        fig, ax = plt.subplots(figsize=(12, 6))
+        x = np.arange(n)
+        bottom = np.zeros(n)
+
+        for j in range(n):
+            segment = contrib_pct[:, j]  # opponent j's contribution to each strategy i
+            color = STRATEGY_COLORS.get(strategy_names[j], f"C{j}")
+            display = DISPLAY_NAMES.get(strategy_names[j], strategy_names[j])
+            ax.bar(x, segment, bottom=bottom, color=color, edgecolor="white",
+                   linewidth=0.3, label=display)
+            bottom += segment
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(
+            [DISPLAY_NAMES.get(s, s) for s in strategy_names],
+            rotation=30, ha="right",
+        )
+        unit = "pp" if metric_key in ("ef1", "ef1_plus") else "% of max"
+        ax.set_ylabel(f"Equilibrium Value ({unit})")
+        ax.set_title(f"Marginal Decomposition – {label}")
+        ax.legend(title="Opponent", bbox_to_anchor=(1.02, 1), loc="upper left",
+                  fontsize=8)
+        fig.tight_layout()
+        fname = fig_dir / f"marginal_decomp_{metric_key}.png"
+        fig.savefig(str(fname), dpi=200, bbox_inches="tight")
+        plt.close(fig)
+        print(f"  Saved {fname}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Original paper bootstrap analysis")
     parser.add_argument("--num-bootstrap", type=int, default=1000)
@@ -606,6 +688,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--raw-utility", action=argparse.BooleanOptionalAction, default=True,
                         help="Use raw utility space (default). --no-raw-utility for normalized /2 mode.")
+    parser.add_argument("--plot", action="store_true",
+                        help="Generate marginal decomposition figures")
     args = parser.parse_args()
 
     crossplay_dir = Path(__file__).parent.parent / "data" / "crossplay"
@@ -615,7 +699,7 @@ if __name__ == "__main__":
     if matrix_path.exists():
         strategy_names = load_json(matrix_path)["strategy_names"]
     else:
-        strategy_names = ["walk", "tough", "nfsp", "mappo", "soft", "ppo", "psro", "openai_5.2_none"]
+        strategy_names = ["walk", "tough", "nfsp", "mappo", "soft", "ppo", "psro", "ef1_bargainer", "openai_5.2_none", "openai_5.2_low"]
 
     results = run_bootstrap_analysis(
         crossplay_dir=crossplay_dir,
@@ -627,6 +711,10 @@ if __name__ == "__main__":
     )
 
     print_results(results)
+
+    if args.plot:
+        print("\nGenerating marginal decomposition figures...")
+        plot_marginal_decomposition(results)
 
     # Save results
     if args.output:

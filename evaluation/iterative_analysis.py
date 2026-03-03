@@ -44,6 +44,19 @@ if __name__ == "__main__":
         default="both",
         choices=["shapley", "banzhaf", "both"],
     )
+    parser.add_argument(
+        "--n-workers",
+        type=int,
+        default=1,
+        help="Number of parallel workers for L3 coalition solves (default 1).",
+    )
+    parser.add_argument(
+        "--chunk-id",
+        type=int,
+        default=None,
+        help="If set, run as one chunk of a parallel job. "
+             "Offsets seed by chunk-id and saves raw results only.",
+    )
     args = parser.parse_args()
 
     crossplay_dir = Path(__file__).parent.parent / "data" / "crossplay"
@@ -56,7 +69,7 @@ if __name__ == "__main__":
     else:
         strategy_names = [
             "walk", "tough", "nfsp", "mappo", "soft", "ppo", "psro",
-            "openai_5.2_none",
+            "openai_5.2_none", "openai_5.2_low", "ef1_bargainer"
         ]
 
     # Load data
@@ -65,21 +78,22 @@ if __name__ == "__main__":
         crossplay_dir, strategy_names, raw_utility=args.raw_utility,
     )
 
+    # Offset seed for chunk mode
+    seed = args.seed if args.chunk_id is None else args.seed + args.chunk_id
+
     # Run analysis
     results = run_full_pipeline(
         df=df,
         strategy_names=strategy_names,
         num_bootstrap=args.num_bootstrap,
-        seed=args.seed,
+        seed=seed,
         solver=args.solver,
         include_l3=args.include_l3,
         l3_method=args.l3_method,
+        n_workers=args.n_workers,
     )
 
-    # Print
-    print_results(results["aggregated"], raw_utility=args.raw_utility)
-
-    # Save
+    # Determine output path
     if args.output:
         output_path = Path(args.output)
     else:
@@ -88,6 +102,17 @@ if __name__ == "__main__":
             / "data" / "analysis" / "iterative_analysis_results"
         )
 
-    print(f"\nSaving results...")
-    save_results(results, output_path)
-    print("Done.")
+    if args.chunk_id is not None:
+        # Chunk mode: save only raw results, skip aggregation/printing
+        import pickle
+        chunk_path = output_path.parent / f"{output_path.name}_chunk{args.chunk_id}.pkl"
+        chunk_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(chunk_path, "wb") as f:
+            pickle.dump(results["raw"], f, protocol=pickle.HIGHEST_PROTOCOL)
+        print(f"Chunk {args.chunk_id}: saved {len(results['raw'])} samples to {chunk_path}")
+    else:
+        # Normal mode: print and save everything
+        print_results(results["aggregated"], raw_utility=args.raw_utility)
+        print(f"\nSaving results...")
+        save_results(results, output_path)
+        print("Done.")

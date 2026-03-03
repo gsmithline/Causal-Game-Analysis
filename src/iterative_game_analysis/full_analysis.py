@@ -62,6 +62,65 @@ def _is_ef1_vectorized(
     return p1_ef1 & p2_ef1
 
 
+def _exists_ef1_beating_batnas(
+    utilities_p1: np.ndarray,
+    utilities_p2: np.ndarray,
+    raw_batna_p1: np.ndarray,
+    raw_batna_p2: np.ndarray,
+) -> np.ndarray:
+    """Check if an EF1 allocation exists that beats both BATNAs.
+
+    Enumerates all possible allocations for items = [7, 4, 1].
+
+    Args:
+        utilities_p1: (n_games, 3) per-item values for P1.
+        utilities_p2: (n_games, 3) per-item values for P2.
+        raw_batna_p1: (n_games,) P1's BATNA in raw utility space.
+        raw_batna_p2: (n_games,) P2's BATNA in raw utility space.
+
+    Returns:
+        (n_games,) boolean — True if a valid allocation exists.
+    """
+    items = ITEM_QUANTITIES  # [7, 4, 1]
+
+    all_allocs = np.array([
+        (a, b, c)
+        for a in range(items[0] + 1)
+        for b in range(items[1] + 1)
+        for c in range(items[2] + 1)
+    ])
+    p2_allocs = items - all_allocs
+
+    p1_payoffs = utilities_p1 @ all_allocs.T
+    p2_payoffs = utilities_p2 @ p2_allocs.T
+
+    beats_batna = (
+        (p1_payoffs > raw_batna_p1[:, None])
+        & (p2_payoffs > raw_batna_p2[:, None])
+    )
+
+    # EF1 check for P1
+    p1_other_vals = utilities_p1 @ p2_allocs.T
+    p2_has_items = p2_allocs > 0
+    p1_vals_masked = np.where(
+        p2_has_items[None, :, :], utilities_p1[:, None, :], 0
+    )
+    p1_max_remove = np.max(p1_vals_masked, axis=2)
+    p1_ef1 = p1_payoffs >= p1_other_vals - p1_max_remove
+
+    # EF1 check for P2
+    p2_other_vals = utilities_p2 @ all_allocs.T
+    p1_has_items = all_allocs > 0
+    p2_vals_masked = np.where(
+        p1_has_items[None, :, :], utilities_p2[:, None, :], 0
+    )
+    p2_max_remove = np.max(p2_vals_masked, axis=2)
+    p2_ef1 = p2_payoffs >= p2_other_vals - p2_max_remove
+
+    valid = p1_ef1 & p2_ef1 & beats_batna
+    return np.any(valid, axis=1)
+
+
 def load_crossplay_to_dataframe(
     crossplay_dir: Path | str,
     strategy_names: List[str],
@@ -82,7 +141,8 @@ def load_crossplay_to_dataframe(
 
     Returns:
         DataFrame with columns: policy_i, policy_j, payoff_i, payoff_j,
-        batna_i, batna_j, ef1. EF1 is NaN for non-accept games.
+        batna_i, batna_j, ef1, ef1_plus. EF1 is NaN for non-accept games.
+        EF1+ is NaN for non-accept or non-rational games.
     """
     crossplay_dir = Path(crossplay_dir)
 
@@ -157,14 +217,35 @@ def load_crossplay_to_dataframe(
                 )
                 ef1[accept_indices] = ef1_results.astype(float)
 
+            # Raw utility space (always needed for EF1+)
+            max_p1 = np.sum(utilities_p1 * ITEM_QUANTITIES, axis=1)
+            max_p2 = np.sum(utilities_p2 * ITEM_QUANTITIES, axis=1)
+            raw_pay_p1 = payoff_p1 * max_p1
+            raw_pay_p2 = payoff_p2 * max_p2
+            raw_bat_p1 = batna_p1 * max_p1
+            raw_bat_p2 = batna_p2 * max_p2
+
+            # EF1+: outcome beats both BATNAs AND a rational EF1 allocation exists
+            outcome_beats = (raw_pay_p1 > raw_bat_p1) & (raw_pay_p2 > raw_bat_p2)
+            ef1_rational_exists = _exists_ef1_beating_batnas(
+                utilities_p1, utilities_p2, raw_bat_p1, raw_bat_p2,
+            )
+            # ef1_plus: NaN for non-accept or non-rational games,
+            # 1 if ef1 & outcome beats BATNAs, 0 otherwise
+            ef1_plus = np.full(n_games, np.nan)
+            is_accept = np.zeros(n_games, dtype=bool)
+            is_accept[accept_indices] = True
+            rational_accept = is_accept & ef1_rational_exists
+            ef1_plus[rational_accept] = (
+                ef1[rational_accept].astype(bool) & outcome_beats[rational_accept]
+            ).astype(float)
+
             # Convert to raw utility space if requested
             if raw_utility:
-                max_p1 = np.sum(utilities_p1 * ITEM_QUANTITIES, axis=1)
-                max_p2 = np.sum(utilities_p2 * ITEM_QUANTITIES, axis=1)
-                pay_p1 = payoff_p1 * max_p1
-                pay_p2 = payoff_p2 * max_p2
-                bat_p1 = batna_p1 * max_p1
-                bat_p2 = batna_p2 * max_p2
+                pay_p1 = raw_pay_p1
+                pay_p2 = raw_pay_p2
+                bat_p1 = raw_bat_p1
+                bat_p2 = raw_bat_p2
             else:
                 pay_p1 = payoff_p1
                 pay_p2 = payoff_p2
@@ -180,6 +261,7 @@ def load_crossplay_to_dataframe(
                 "batna_i": bat_p1,
                 "batna_j": bat_p2,
                 "ef1": ef1,
+                "ef1_plus": ef1_plus,
             })
             reverse = pd.DataFrame({
                 "policy_i": strat_j,
@@ -189,6 +271,7 @@ def load_crossplay_to_dataframe(
                 "batna_i": bat_p2,
                 "batna_j": bat_p1,
                 "ef1": ef1,
+                "ef1_plus": ef1_plus,
             })
             dfs.append(forward)
             dfs.append(reverse)
@@ -227,7 +310,7 @@ def aggregate_results(
     """
     n_bootstrap = len(results)
 
-    METRICS = ["payoff", "nw", "nw_plus", "ef1"]
+    METRICS = ["payoff", "nw", "nw_plus", "ef1", "ef1_plus"]
 
     # --- Full game ---
     sigma_samples = [r["full_game"]["sigma"].tolist() for r in results]
@@ -246,6 +329,7 @@ def aggregate_results(
         },
         "welfare": {},
         "ef1": _summarize([r["full_game"]["ef1"] for r in results]),
+        "ef1_plus": _summarize([r["full_game"]["ef1_plus"] for r in results]),
         "regret": {},
         "per_agent_values": {},
     }
@@ -274,6 +358,9 @@ def aggregate_results(
             "welfare_B": {},
             "ef1_B": _summarize(
                 [r["l1"][candidate]["ef1_B"] for r in results]
+            ),
+            "ef1_plus_B": _summarize(
+                [r["l1"][candidate]["ef1_plus_B"] for r in results]
             ),
         }
         # Per-metric aggregations (uniform_avg, eq_avg, min, max)
@@ -312,6 +399,9 @@ def aggregate_results(
             "ef1_lift": _summarize(
                 [r["l2"][candidate]["ef1_lift"] for r in results]
             ),
+            "ef1_plus_lift": _summarize(
+                [r["l2"][candidate]["ef1_plus_lift"] for r in results]
+            ),
             "incumbent_shifts": {},
         }
         for wf in ["uw", "nw", "nw_plus"]:
@@ -339,6 +429,9 @@ def aggregate_results(
                     l3["total_value"][wf] = _summarize(
                         [r["l3"]["total_value"][wf] for r in results]
                     )
+            elif key == "coalition_details":
+                # Raw per-coalition data — preserved in pickle, skip aggregation
+                continue
             else:
                 l3[key] = {}
                 for name in strategy_names:
@@ -364,6 +457,7 @@ def run_full_pipeline(
     solver: str = "mene",
     include_l3: bool = True,
     l3_method: str = "both",
+    n_workers: int = 1,
 ) -> Dict:
     """Run the full iterative meta-game analysis pipeline.
 
@@ -379,6 +473,7 @@ def run_full_pipeline(
         solver: Equilibrium solver ("mene" or "uniform").
         include_l3: Whether to compute Level 3 attribution.
         l3_method: "shapley", "banzhaf", or "both".
+        n_workers: Number of parallel workers for L3 coalition solves.
 
     Returns:
         Dict with keys:
@@ -400,6 +495,7 @@ def run_full_pipeline(
         include_l3=include_l3,
         l3_method=l3_method,
         progress=True,
+        n_workers=n_workers,
     )
 
     print(f"Aggregating {len(raw_results)} bootstrap samples...")
@@ -455,7 +551,6 @@ def save_results(results: Dict, output_path: Path | str) -> None:
         pickle.dump(results, f, protocol=pickle.HIGHEST_PROTOCOL)
     print(f"  Saved raw results to {pkl_path}")
 
-    # Save aggregated summary as JSON (human-readable)
     json_path = output_path.with_suffix(".json")
     json_data = _make_serializable({
         "config": results["config"],
@@ -497,7 +592,6 @@ def print_results(agg: Dict, raw_utility: bool = True) -> None:
     print(f"Strategies: {names}")
     print(f"Bootstrap samples: {agg['num_bootstrap']}")
 
-    # --- Full game: Equilibrium ---
     fg = agg["full_game"]
     print("\n--- Equilibrium Distribution ---")
     eq = fg["equilibrium"]
@@ -508,14 +602,12 @@ def print_results(agg: Dict, raw_utility: bool = True) -> None:
     for name in names:
         print(f"  {name:20s}: {fg['support_frequency'][name]:.1f}%")
 
-    # --- Full game: Regret ---
     print("\n--- Per-Agent Regret (95% CI) ---")
     for name in names:
         r = fg["regret"][name]
         print(f"  {name:20s}: {r['mean']:.2f} +/- {r['std']:.2f}  "
               f"[{r['ci_lower']:.2f}, {r['ci_upper']:.2f}]")
 
-    # --- Full game: Welfare ---
     if raw_utility:
         divs = {"uw": MAX_UW, "nw": MAX_NW, "nw_plus": MAX_NW_PLUS}
     else:
@@ -533,12 +625,17 @@ def print_results(agg: Dict, raw_utility: bool = True) -> None:
     print(f"  {'ecosystem':20s}: {e['mean']*100:.2f} +/- {e['std']*100:.2f}  "
           f"[{e['ci_lower']*100:.2f}, {e['ci_upper']*100:.2f}]")
 
+    ep = fg["ef1_plus"]
+    print(f"\n--- Full Game EF1+ % (95% CI, rational games only) ---")
+    print(f"  {'ecosystem':20s}: {ep['mean']*100:.2f} +/- {ep['std']*100:.2f}  "
+          f"[{ep['ci_lower']*100:.2f}, {ep['ci_upper']*100:.2f}]")
+
     # --- L1: Partner Lift (all metrics) ---
     print("\n" + "=" * 70)
     print("LEVEL 1: PARTNER LIFT (leave-one-out, no re-equilibration)")
     print("=" * 70)
 
-    metric_labels = [("payoff", "Payoff"), ("nw", "NW"), ("nw_plus", "NW+"), ("ef1", "EF1")]
+    metric_labels = [("payoff", "Payoff"), ("nw", "NW"), ("nw_plus", "NW+"), ("ef1", "EF1"), ("ef1_plus", "EF1+")]
 
     for candidate in names:
         l1 = agg["l1"][candidate]
@@ -556,7 +653,7 @@ def print_results(agg: Dict, raw_utility: bool = True) -> None:
                 print(f"      {agg_name:20s}: {m['mean']:.4f} +/- {m['std']:.4f}  "
                       f"[{m['ci_lower']:.4f}, {m['ci_upper']:.4f}]")
 
-    # --- L2: Ecosystem Lift (all metrics) ---
+   
     print("\n" + "=" * 70)
     print("LEVEL 2: ECOSYSTEM LIFT (leave-one-out, with re-equilibration)")
     print("=" * 70)
@@ -579,6 +676,10 @@ def print_results(agg: Dict, raw_utility: bool = True) -> None:
 
         m = l2["ef1_lift"]
         print(f"    {'ef1_lift':20s}: {m['mean']:.4f} +/- {m['std']:.4f}  "
+              f"[{m['ci_lower']:.4f}, {m['ci_upper']:.4f}]")
+
+        m = l2["ef1_plus_lift"]
+        print(f"    {'ef1_plus_lift':20s}: {m['mean']:.4f} +/- {m['std']:.4f}  "
               f"[{m['ci_lower']:.4f}, {m['ci_upper']:.4f}]")
 
         # Per-metric incumbent shifts
@@ -607,7 +708,7 @@ def print_results(agg: Dict, raw_utility: bool = True) -> None:
 
         if "total_value" in agg["l3"]:
             print(f"\n  --- Total Ecosystem Value ---")
-            for wf in ["uw", "nw", "nw_plus"]:
+            for wf in agg["l3"]["total_value"]:
                 m = agg["l3"]["total_value"][wf]
                 print(f"    {wf:20s}: {m['mean']:.4f} +/- {m['std']:.4f}  "
                       f"[{m['ci_lower']:.4f}, {m['ci_upper']:.4f}]")

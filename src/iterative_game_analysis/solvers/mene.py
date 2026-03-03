@@ -65,7 +65,7 @@ class MENESolver:
         # MILP failed at 1e-6 — try relaxed tolerances without re-solving
         # by calling with the most relaxed tolerance (the MILP result is
         # deterministic, so we only need to re-solve once)
-        for tol in [1e-5, 1e-4]:
+        for tol in [1e-5, 1e-4, 1e-3]:
             try:
                 result = milp_max_entropy_ne(
                     payoff_matrix, self.discrete_factors, regret_tolerance=tol
@@ -79,7 +79,7 @@ class MENESolver:
                 continue
 
         # Fall back to replicator dynamics with progressive tolerances
-        for rd_tol in [1e-5, 1e-4]:
+        for rd_tol in [1e-5, 1e-4, 1e-3]:
             try:
                 result = _replicator_dynamics_mene(
                     payoff_matrix, regret_tolerance=rd_tol

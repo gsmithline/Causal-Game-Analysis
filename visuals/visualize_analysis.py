@@ -31,7 +31,8 @@ import seaborn as sns
 # ---------------------------------------------------------------------------
 
 STRATEGY_ORDER = [
-    "walk", "tough", "nfsp", "mappo", "soft", "ppo", "psro", "openai_5.2_none"
+    "walk", "tough", "nfsp", "mappo", "soft", "ppo", "psro",
+    "openai_5.2_none", "openai_5.2_low", "ef1_bargainer"
 ]
 
 DISPLAY_NAMES = {
@@ -43,6 +44,8 @@ DISPLAY_NAMES = {
     "ppo": "PPO",
     "psro": "PSRO",
     "openai_5.2_none": "OpenAI-5.2",
+    "openai_5.2_low": "OpenAI-5.2-Low",
+    "ef1_bargainer": "EF1",
 }
 
 _TAB10 = plt.cm.tab10.colors
@@ -80,6 +83,7 @@ L3_NORM = {
     "nw": MAX_NW,
     "nw_plus": MAX_NW_PLUS,
     "ef1": 1.0,  # EF1 is already a frequency, scale ×100 for %
+    "ef1_plus": 1.0,
 }
 
 # ---------------------------------------------------------------------------
@@ -95,6 +99,13 @@ def _dn(strategy: str) -> str:
 def _norm_pct(val, divisor):
     """Normalize a raw value to percentage of max."""
     return val / divisor * 100
+
+
+def _yerr(means, ci_lo, ci_hi):
+    """Compute clamped error bars from means and CI bounds."""
+    lo = [max(0, m - l) for m, l in zip(means, ci_lo)]
+    hi = [max(0, h - m) for m, h in zip(means, ci_hi)]
+    return [lo, hi]
 
 
 def load_results(base_dir: str | Path | None = None):
@@ -169,14 +180,11 @@ def plot_strategy_regret(agg, save_dir):
     means = [regret[s]["mean"] for s in strategies]
     ci_lo = [regret[s]["ci_lower"] for s in strategies]
     ci_hi = [regret[s]["ci_upper"] for s in strategies]
-    xerr_lo = [m - lo for m, lo in zip(means, ci_lo)]
-    xerr_hi = [hi - m for m, hi in zip(means, ci_hi)]
-
     y = np.arange(len(strategies))
     colors = [STRATEGY_COLORS[s] for s in strategies]
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.barh(y, means, xerr=[xerr_lo, xerr_hi], capsize=3,
+    ax.barh(y, means, xerr=_yerr(means, ci_lo, ci_hi), capsize=3,
             color=colors, edgecolor="black", linewidth=0.5)
     ax.axvline(0, color="black", lw=0.8)
     ax.set_yticks(y)
@@ -211,9 +219,7 @@ def plot_per_agent_values(agg, save_dir):
         means = [_norm_pct(pav[met][s]["mean"], div) for s in strategies]
         ci_lo = [_norm_pct(pav[met][s]["ci_lower"], div) for s in strategies]
         ci_hi = [_norm_pct(pav[met][s]["ci_upper"], div) for s in strategies]
-        yerr_lo = [m_ - lo for m_, lo in zip(means, ci_lo)]
-        yerr_hi = [hi - m_ for m_, hi in zip(means, ci_hi)]
-        ax.bar(x + j * width, means, width, yerr=[yerr_lo, yerr_hi],
+        ax.bar(x + j * width, means, width, yerr=_yerr(means, ci_lo, ci_hi),
                capsize=3, label=label, color=col, edgecolor="black", linewidth=0.4)
 
     ax.set_xticks(x + width)
@@ -343,9 +349,7 @@ def plot_l2_ecosystem_impact(agg, save_dir):
         means = [_norm_pct(l2[s]["delta_eco"][wk]["mean"], div) for s in in_support]
         ci_lo = [_norm_pct(l2[s]["delta_eco"][wk]["ci_lower"], div) for s in in_support]
         ci_hi = [_norm_pct(l2[s]["delta_eco"][wk]["ci_upper"], div) for s in in_support]
-        yerr_lo = [m_ - lo for m_, lo in zip(means, ci_lo)]
-        yerr_hi = [hi - m_ for m_, hi in zip(means, ci_hi)]
-        ax1.bar(x + j * width, means, width, yerr=[yerr_lo, yerr_hi],
+        ax1.bar(x + j * width, means, width, yerr=_yerr(means, ci_lo, ci_hi),
                 capsize=3, label=wl, color=wc, edgecolor="black", linewidth=0.4)
 
     ax1.set_xticks(x + width)
@@ -359,20 +363,15 @@ def plot_l2_ecosystem_impact(agg, save_dir):
     em_means = [l2[s]["entry_mass"]["mean"] for s in in_support]
     em_ci_lo = [l2[s]["entry_mass"]["ci_lower"] for s in in_support]
     em_ci_hi = [l2[s]["entry_mass"]["ci_upper"] for s in in_support]
-    em_err_lo = [m_ - lo for m_, lo in zip(em_means, em_ci_lo)]
-    em_err_hi = [hi - m_ for m_, hi in zip(em_means, em_ci_hi)]
-
     es_means = [l2[s]["equilibrium_shift"]["mean"] for s in in_support]
     es_ci_lo = [l2[s]["equilibrium_shift"]["ci_lower"] for s in in_support]
     es_ci_hi = [l2[s]["equilibrium_shift"]["ci_upper"] for s in in_support]
-    es_err_lo = [m_ - lo for m_, lo in zip(es_means, es_ci_lo)]
-    es_err_hi = [hi - m_ for m_, hi in zip(es_means, es_ci_hi)]
 
     w2 = 0.35
-    ax2.bar(x - w2 / 2, em_means, w2, yerr=[em_err_lo, em_err_hi],
+    ax2.bar(x - w2 / 2, em_means, w2, yerr=_yerr(em_means, em_ci_lo, em_ci_hi),
             capsize=3, label="Entry Mass", color="#4c72b0",
             edgecolor="black", linewidth=0.4)
-    ax2.bar(x + w2 / 2, es_means, w2, yerr=[es_err_lo, es_err_hi],
+    ax2.bar(x + w2 / 2, es_means, w2, yerr=_yerr(es_means, es_ci_lo, es_ci_hi),
             capsize=3, label="Eq. Shift", color="#dd8452",
             edgecolor="black", linewidth=0.4)
     ax2.set_xticks(x)
@@ -385,11 +384,9 @@ def plot_l2_ecosystem_impact(agg, save_dir):
     ef1_means = [l2[s]["ef1_lift"]["mean"] * 100 for s in in_support]
     ef1_ci_lo = [l2[s]["ef1_lift"]["ci_lower"] * 100 for s in in_support]
     ef1_ci_hi = [l2[s]["ef1_lift"]["ci_upper"] * 100 for s in in_support]
-    ef1_err_lo = [m_ - lo for m_, lo in zip(ef1_means, ef1_ci_lo)]
-    ef1_err_hi = [hi - m_ for m_, hi in zip(ef1_means, ef1_ci_hi)]
     colors_ef1 = [STRATEGY_COLORS[s] for s in in_support]
 
-    ax3.bar(x, ef1_means, 0.5, yerr=[ef1_err_lo, ef1_err_hi],
+    ax3.bar(x, ef1_means, 0.5, yerr=_yerr(ef1_means, ef1_ci_lo, ef1_ci_hi),
             capsize=3, color=colors_ef1, edgecolor="black", linewidth=0.4)
     ax3.axhline(0, color="black", lw=0.6)
     ax3.set_xticks(x)
@@ -422,14 +419,17 @@ def _plot_l3_bar(agg, save_dir, method, filename):
     total_value = l3.get("total_value", {})
 
     # Discover available keys for this method
-    all_wf_keys = ["uw", "nw", "nw_plus", "ef1"]
+    all_wf_keys = ["uw", "nw", "nw_plus", "ef1", "ef1_plus"]
     wf_titles = {
         "uw": "Utilitarian Welfare",
         "nw": "Nash Welfare",
         "nw_plus": "NW+ Welfare",
         "ef1": "EF1 Frequency",
+        "ef1_plus": "EF1+ Frequency",
     }
     available = [wk for wk in all_wf_keys if f"{method}_{wk}" in l3]
+    if not available:
+        return
 
     n_panels = len(available)
     fig, axes = plt.subplots(n_panels, 1, figsize=(10, 4 * n_panels))
@@ -449,12 +449,9 @@ def _plot_l3_bar(agg, save_dir, method, filename):
         means = [data[s]["mean"] / div * scale for s in strategies]
         ci_lo = [data[s]["ci_lower"] / div * scale for s in strategies]
         ci_hi = [data[s]["ci_upper"] / div * scale for s in strategies]
-        xerr_lo = [m - lo for m, lo in zip(means, ci_lo)]
-        xerr_hi = [hi - m for m, hi in zip(means, ci_hi)]
-
         bar_colors = [POS_COLOR if m >= 0 else NEG_COLOR for m in means]
         y = np.arange(len(strategies))
-        ax.barh(y, means, xerr=[xerr_lo, xerr_hi], capsize=3,
+        ax.barh(y, means, xerr=_yerr(means, ci_lo, ci_hi), capsize=3,
                 color=bar_colors, edgecolor="black", linewidth=0.4)
         ax.axvline(0, color="black", lw=0.8, ls="--")
         ax.set_yticks(y)
@@ -469,7 +466,7 @@ def _plot_l3_bar(agg, save_dir, method, filename):
         else:
             tv_str = ""
         label = method.capitalize()
-        unit = "% of max" if wk != "ef1" else "pp"
+        unit = "pp" if wk in ("ef1", "ef1_plus") else "% of max"
         ax.set_title(f"{label} – {wf_titles[wk]}{tv_str}")
         ax.set_xlabel(f"{label} Value ({unit})")
 
@@ -500,15 +497,13 @@ def plot_ef1_fairness(agg, save_dir):
     means = [ef1_data[s]["mean"] * 100 for s in strategies]
     ci_lo = [ef1_data[s]["ci_lower"] * 100 for s in strategies]
     ci_hi = [ef1_data[s]["ci_upper"] * 100 for s in strategies]
-    yerr_lo = [m - lo for m, lo in zip(means, ci_lo)]
-    yerr_hi = [hi - m for m, hi in zip(means, ci_hi)]
     full_ef1_pct = full_ef1["mean"] * 100
 
     x = np.arange(len(strategies))
     colors = [STRATEGY_COLORS[s] for s in strategies]
 
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
-    ax.bar(x, means, yerr=[yerr_lo, yerr_hi], capsize=4,
+    ax.bar(x, means, yerr=_yerr(means, ci_lo, ci_hi), capsize=4,
            color=colors, edgecolor="black", linewidth=0.5)
     ax.axhline(full_ef1_pct, ls="--", color="grey", lw=1,
                label=f"Full-game EF1 = {full_ef1_pct:.1f}%")
@@ -534,14 +529,17 @@ def _plot_l3_beeswarm(agg, raw, save_dir, method, filename):
 
     Values are normalized the same way as the bar charts.
     """
-    all_wf_keys = ["uw", "nw", "nw_plus", "ef1"]
+    all_wf_keys = ["uw", "nw", "nw_plus", "ef1", "ef1_plus"]
     wf_titles = {
         "uw": "Utilitarian Welfare",
         "nw": "Nash Welfare",
         "nw_plus": "NW+ Welfare",
         "ef1": "EF1 Frequency",
+        "ef1_plus": "EF1+ Frequency",
     }
     available = [wk for wk in all_wf_keys if f"{method}_{wk}" in raw[0]["l3"]]
+    if not available:
+        return
 
     # Collect per-bootstrap values
     per_key_data = {}
@@ -581,7 +579,7 @@ def _plot_l3_beeswarm(agg, raw, save_dir, method, filename):
         ax.set_yticklabels([_dn(s) for s in strategies])
         ax.invert_yaxis()
         label = method.capitalize()
-        unit = "% of max" if wk != "ef1" else "pp"
+        unit = "pp" if wk in ("ef1", "ef1_plus") else "% of max"
         ax.set_title(f"{label} Beeswarm – {wf_titles[wk]}")
         ax.set_xlabel(f"{label} Value ({unit})")
 
@@ -593,6 +591,86 @@ def _plot_l3_beeswarm(agg, raw, save_dir, method, filename):
 def plot_l3_banzhaf_beeswarm(agg, raw, save_dir):
     _plot_l3_beeswarm(agg, raw, save_dir, "banzhaf",
                       "fig8_l3_banzhaf_beeswarm.png")
+
+
+def plot_l3_banzhaf_beeswarm_no_singleton(agg, raw, save_dir):
+    """Beeswarm recomputed from coalition_details, excluding the singleton
+    (empty coalition S=∅) so that the trivial v({i})-v(∅) term is removed."""
+    all_wf_keys = ["uw", "nw", "nw_plus", "ef1", "ef1_plus"]
+    wf_titles = {
+        "uw": "Utilitarian Welfare",
+        "nw": "Nash Welfare",
+        "nw_plus": "NW+ Welfare",
+        "ef1": "EF1 Frequency",
+        "ef1_plus": "EF1+ Frequency",
+    }
+
+    # Check which welfare keys are available in coalition_details
+    sample0_details = raw[0]["l3"].get("coalition_details", [])
+    if not sample0_details:
+        return
+    available_wf = [wk for wk in all_wf_keys if wk in sample0_details[0]["marginals"]]
+    if not available_wf:
+        return
+
+    # Recompute per-bootstrap Banzhaf excluding singleton
+    per_key_data = {wk: {} for wk in available_wf}
+    for sample in raw:
+        # Group marginals by policy, excluding empty coalition
+        policy_marginals = {}  # policy -> {wk: [marginals]}
+        for r in sample["l3"]["coalition_details"]:
+            if not r["coalition_without"]:  # skip singleton (S = ∅)
+                continue
+            p = r["policy"]
+            if p not in policy_marginals:
+                policy_marginals[p] = {wk: [] for wk in available_wf}
+            for wk in available_wf:
+                policy_marginals[p][wk].append(r["marginals"][wk])
+
+        for p, wk_marginals in policy_marginals.items():
+            for wk in available_wf:
+                banzhaf = np.mean(wk_marginals[wk])
+                per_key_data[wk].setdefault(p, []).append(banzhaf)
+
+    n_panels = len(available_wf)
+    fig, axes = plt.subplots(n_panels, 1, figsize=(10, 4 * n_panels))
+    if n_panels == 1:
+        axes = [axes]
+
+    for ax, wk in zip(axes, available_wf):
+        strat_vals = per_key_data[wk]
+        strategies = list(strat_vals.keys())
+        div = L3_NORM[wk]
+        scale = 100.0
+
+        strategies = sorted(
+            strategies,
+            key=lambda s: np.mean(np.abs(np.array(strat_vals[s]) / div * scale)),
+            reverse=True,
+        )
+
+        y_positions = np.arange(len(strategies))
+        for i, s in enumerate(strategies):
+            vals = np.array(strat_vals[s]) / div * scale
+            jitter = np.random.default_rng(42).uniform(-0.2, 0.2, size=len(vals))
+            dot_colors = [POS_COLOR if v >= 0 else NEG_COLOR for v in vals]
+            ax.scatter(vals, i + jitter, c=dot_colors, s=40, alpha=0.7,
+                       edgecolors="black", linewidths=0.3, zorder=3)
+
+        ax.axvline(0, color="black", lw=0.8, ls="--")
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels([_dn(s) for s in strategies])
+        ax.invert_yaxis()
+        unit = "pp" if wk in ("ef1", "ef1_plus") else "% of max"
+        ax.set_title(f"Banzhaf Beeswarm (excl. singleton) – {wf_titles[wk]}")
+        ax.set_xlabel(f"Banzhaf Value ({unit})")
+
+    fig.tight_layout()
+    fig.savefig(
+        os.path.join(save_dir, "fig8b_l3_banzhaf_beeswarm_no_singleton.png"),
+        dpi=DEFAULT_DPI,
+    )
+    plt.close(fig)
 
 
 def plot_l3_shapley_beeswarm(agg, raw, save_dir):
@@ -829,15 +907,18 @@ def plot_shapley_decision(raw, config, save_dir):
     strategies = config["strategy_names"]
     n_strats = len(strategies)
 
-    all_wf_keys = ["uw", "nw", "nw_plus", "ef1"]
+    all_wf_keys = ["uw", "nw", "nw_plus", "ef1", "ef1_plus"]
     wf_titles = {
         "uw": "Utilitarian Welfare",
         "nw": "Nash Welfare",
         "nw_plus": "NW+ Welfare",
         "ef1": "EF1 Frequency",
+        "ef1_plus": "EF1+ Frequency",
     }
 
     available = [wk for wk in all_wf_keys if f"shapley_{wk}" in raw[0]["l3"]]
+    if not available:
+        return
 
     for wf_key in available:
         shap_key = f"shapley_{wf_key}"
@@ -929,6 +1010,7 @@ def generate_all_figures(data_dir=None, fig_dir=None):
         ("fig6_l3_banzhaf_attribution",      lambda: plot_l3_banzhaf_bar(agg, fig_dir)),
         ("fig7_ef1_fairness",                lambda: plot_ef1_fairness(agg, fig_dir)),
         ("fig8_l3_banzhaf_beeswarm",         lambda: plot_l3_banzhaf_beeswarm(agg, raw, fig_dir)),
+        ("fig8b_l3_banzhaf_beeswarm_no_sing", lambda: plot_l3_banzhaf_beeswarm_no_singleton(agg, raw, fig_dir)),
         ("fig9_l3_shapley_attribution",      lambda: plot_l3_shapley_bar(agg, fig_dir)),
         ("fig10_l3_shapley_beeswarm",        lambda: plot_l3_shapley_beeswarm(agg, raw, fig_dir)),
         ("fig11_cell_contributions (×4)",    lambda: plot_cell_contributions(raw, config, fig_dir)),
