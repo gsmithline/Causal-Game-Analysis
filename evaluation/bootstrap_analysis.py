@@ -479,8 +479,8 @@ if __name__ == "__main__":
             matrix_data = json.load(f)
         strategy_names = matrix_data["strategy_names"]
     else:
-        #strategy_names = ["walk", "tough", "soft", "nfsp", "mappo", "ppo", "psro", "openai_5.2_none", "openai_5.2_low", "ef1_bargainer"]
-        strategy_names = ["openai_5.2_low", "openai_5.2_none", "nfsp", "mappo", "ppo", "psro"]
+        #strategy_names = ["walk", "tough", "soft", "nfsp", "mappo", "ppo", "psro", "openai_5.2_none", "openai_5.2_low", "ef1_bargainer", "openai_5.4_low"]
+        strategy_names = ["openai_5.2_low", "openai_5.2_none", "openai_5.4_low"]
 
     avg_br_matrix = run_bootstrap_analysis(
         crossplay_dir=crossplay_dir,

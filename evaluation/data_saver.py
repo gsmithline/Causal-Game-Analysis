@@ -12,6 +12,32 @@ from datetime import datetime
 from evaluation.crossplay import MatchupResult
 
 
+def _summary_from_games_file(games_path: Path) -> dict:
+    """Recompute summary statistics from a (possibly merged) games.json file."""
+    with open(games_path, 'r') as f:
+        data = json.load(f)
+
+    games = data["games"]
+    num_games = len(games)
+    payoffs_p1 = [g["outcome"]["payoff_p1"] for g in games]
+    payoffs_p2 = [g["outcome"]["payoff_p2"] for g in games]
+    results = [g["outcome"]["result"] for g in games]
+    accept_count = sum(1 for r in results if r == "accept")
+
+    import numpy as np
+    return {
+        "strategy_p1": data["strategy_p1"],
+        "strategy_p2": data["strategy_p2"],
+        "num_games": num_games,
+        "avg_payoff_p1": float(np.mean(payoffs_p1)),
+        "avg_payoff_p2": float(np.mean(payoffs_p2)),
+        "std_payoff_p1": float(np.std(payoffs_p1)),
+        "std_payoff_p2": float(np.std(payoffs_p2)),
+        "accept_rate": accept_count / num_games if num_games > 0 else 0.0,
+        "walk_rate": 1.0 - (accept_count / num_games) if num_games > 0 else 0.0,
+    }
+
+
 def get_matchup_dirname(strategy_p1: str, strategy_p2: str) -> str:
     """Generate directory name for a matchup."""
     return f"{strategy_p1}_p1_vs_{strategy_p2}_p2"
@@ -41,12 +67,35 @@ def save_matchup_result(
 
     if save_games:
         games_path = matchup_dir / "games.json"
+        new_data = result.to_dict()
+
+        # Append to existing games if file already exists
+        if games_path.exists():
+            try:
+                with open(games_path, 'r') as f:
+                    existing_data = json.load(f)
+                # Re-number new game IDs to continue from existing
+                offset = len(existing_data.get("games", []))
+                for g in new_data["games"]:
+                    g["game_id"] += offset
+                existing_data["games"].extend(new_data["games"])
+                existing_data["num_games"] = len(existing_data["games"])
+                new_data = existing_data
+            except json.JSONDecodeError:
+                print(f"  Warning: corrupt {games_path}, overwriting")
+                # Fall through with just new_data
+
         with open(games_path, 'w') as f:
-            json.dump(result.to_dict(), f, indent=2)
+            json.dump(new_data, f, indent=2)
 
     if save_summary:
         summary_path = matchup_dir / "summary.json"
-        summary = result.compute_summary()
+        # Recompute summary from merged games file (if it was appended)
+        games_path = matchup_dir / "games.json"
+        if games_path.exists():
+            summary = _summary_from_games_file(games_path)
+        else:
+            summary = result.compute_summary()
         summary["timestamp"] = datetime.now().isoformat()
         with open(summary_path, 'w') as f:
             json.dump(summary, f, indent=2)

@@ -28,6 +28,32 @@ import json
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.iterative_game_analysis.metagame import MetaGame
 from src.iterative_game_analysis.utils import compute_regret
+
+# Optional: Polarix for maxent CCE solver
+try:
+    import polarix as plx
+    import jax.numpy as jnp
+    HAS_POLARIX = True
+except ImportError:
+    HAS_POLARIX = False
+
+
+def _solve_maxent_cce(eq_matrix, subset, max_iterations=1_000_000, gap_threshold=1e-4):
+    """Solve maxent CCE using Polarix. Returns sigma or None if not converged."""
+    if not HAS_POLARIX:
+        raise ImportError("Polarix is required for maxent_cce solver. pip install polarix")
+    game = plx.Game(
+        payoffs=jnp.stack([jnp.array(eq_matrix), jnp.array(eq_matrix.T)]),
+        actions=(np.array(subset), np.array(subset)),
+        players=('row', 'column'),
+        symmetry_groups=(0, 0),
+    )
+    ce = plx.solve(game, plx.ce_maxent, max_num_iterations=max_iterations)
+    ce_gap = float(ce.extra['ce_gap'])
+    if ce_gap > gap_threshold:
+        return None
+    sigma = np.array(plx.marginals_from_joint(ce.joint)[0])
+    return sigma
 import numpy as np
 from itertools import product
 import math
@@ -475,6 +501,7 @@ def run_bootstrap_analysis(
     contrib_accum = {key: np.zeros((n, n)) for key in contrib_metrics}
 
     print(f"\nRunning {num_bootstrap} bootstrap samples...")
+    n_skipped = 0
 
     for _ in tqdm(range(num_bootstrap), desc="Bootstrap"):
         # Build matrices with stratified bootstrap
@@ -482,11 +509,18 @@ def run_bootstrap_analysis(
 
         # Create metagame and solve
         eq_matrix = matrices["raw_payoff"] if raw_utility else matrices["payoff"]
-        metagame = MetaGame(
-            policies=strategy_names,
-            payoff_matrix=eq_matrix,
-        )
-        sigma = metagame.solve(solver)
+        if solver == "maxent_cce":
+            eq_matrix = (eq_matrix + eq_matrix.T) / 2  # symmetric game
+            sigma = _solve_maxent_cce(eq_matrix, strategy_names)
+            if sigma is None:
+                n_skipped += 1
+                continue
+        else:
+            metagame = MetaGame(
+                policies=strategy_names,
+                payoff_matrix=eq_matrix,
+            )
+            sigma = metagame.solve(solver)
 
         # Track which strategies are in support (probability > 1e-6)
         support_counts += (sigma > 1e-2).astype(int)
@@ -512,19 +546,24 @@ def run_bootstrap_analysis(
 
         sigma_samples.append(sigma.tolist())
 
-    # Average marginal contributions over bootstrap samples
-    marginal_contributions = {key: (acc / num_bootstrap).tolist()
+    n_converged = num_bootstrap - n_skipped
+    if n_skipped > 0:
+        print(f"\n  {n_skipped}/{num_bootstrap} samples skipped (CCE did not converge)")
+        print(f"  Using {n_converged} converged samples for analysis")
+
+    # Average marginal contributions over converged samples
+    marginal_contributions = {key: (acc / max(n_converged, 1)).tolist()
                               for key, acc in contrib_accum.items()}
 
     # Compute support frequency as percentage
     support_freq = {
-        name: float(support_counts[i] / num_bootstrap * 100)
+        name: float(support_counts[i] / max(n_converged, 1) * 100)
         for i, name in enumerate(strategy_names)
     }
 
     results = {
         "strategy_names": strategy_names,
-        "num_bootstrap": num_bootstrap,
+        "num_bootstrap": n_converged,
         "raw_utility": raw_utility,
         "support_frequency": support_freq,
         "uw": summarize_per_agent(uw_samples, strategy_names),
@@ -699,7 +738,7 @@ if __name__ == "__main__":
     if matrix_path.exists():
         strategy_names = load_json(matrix_path)["strategy_names"]
     else:
-        strategy_names = ["walk", "tough", "nfsp", "mappo", "soft", "ppo", "psro", "ef1_bargainer", "openai_5.2_none", "openai_5.2_low"]
+        strategy_names = ["walk", "tough", "nfsp", "mappo", "soft", "ppo", "psro", "ef1_bargainer", "openai_5.2_none", "openai_5.2_low", "openai_5.4_low"]
 
     results = run_bootstrap_analysis(
         crossplay_dir=crossplay_dir,

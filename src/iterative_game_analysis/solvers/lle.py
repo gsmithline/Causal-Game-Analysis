@@ -17,9 +17,10 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 from scipy import special
+from scipy.linalg import norm
 from scipy.optimize import minimize
 
-from iterative_game_analysis.solvers.base import register_solver
+from .base import register_solver
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -65,6 +66,86 @@ def _pt_grad(pt: NDArray[np.floating], x: list[NDArray[np.floating]], player: in
             continue
         grad_p = np.dot(grad_p, x_p)
     return grad_p
+
+
+def construct_player_kernel(
+    pt: NDArray[np.floating],
+    player: int,
+    var: float = 1e-1
+) -> NDArray[np.floating]:
+    """Build Gaussian similarity kernel for a player's strategies.
+
+    Computes pairwise L2 distances between strategy payoff vectors and
+    applies a Gaussian kernel: K[i,j] = exp(-dist(i,j) / (2*var)).
+
+    Args:
+        pt: Payoff tensor of shape (num_players, *action_dims)
+        player: Player index
+        var: Gaussian kernel variance parameter
+
+    Returns:
+        Kernel matrix of shape (n_actions, n_actions)
+    """
+    # Get payoff matrix for this player: rows = actions, cols = opponent profiles
+    payoff_p = np.moveaxis(pt[player], player, 0)
+    n = payoff_p.shape[0]
+    # Flatten opponent dimensions
+    payoff_p = payoff_p.reshape(n, -1)
+
+    # Pairwise L2 distances
+    diff = payoff_p[:, None, :] - payoff_p[None, :, :]
+    dist = np.sqrt(np.sum(diff ** 2, axis=-1))
+
+    kernel = np.exp(-dist / (2 * var))
+    return kernel
+
+
+def construct_kernels(
+    pt: NDArray[np.floating],
+    var: float = 1e-1
+) -> list[NDArray[np.floating]]:
+    """Build similarity kernels for all players.
+
+    Args:
+        pt: Payoff tensor
+        var: Gaussian kernel variance parameter
+
+    Returns:
+        List of kernel matrices, one per player
+    """
+    return [construct_player_kernel(pt, p, var) for p in range(pt.shape[0])]
+
+
+def affinity_entropy(
+    x: NDArray[np.floating],
+    kernel: NDArray[np.floating],
+    p: float = 1.0
+) -> float:
+    """Compute affinity entropy (clone-invariant).
+
+    From Liu et al. 2025: H_K(x) = (1/p) * (1 - sum((K @ (lam_inv * x))^(p+1)))
+
+    Args:
+        x: Strategy distribution vector
+        kernel: Similarity kernel matrix
+        p: Entropy order parameter (default 1.0 = linear affinity entropy)
+
+    Returns:
+        Affinity entropy value (higher = more spread)
+    """
+    lam_inv = 1.0 / norm(kernel, axis=0, ord=p + 1)
+    z = kernel @ (lam_inv * x)
+    return (1.0 / p) * (1.0 - np.sum(z ** (p + 1)))
+
+
+def _affinity_entropy_logits(
+    logits: NDArray[np.floating],
+    kernel: NDArray[np.floating],
+    p: float = 1.0
+) -> float:
+    """Negative affinity entropy in logit space (for minimization)."""
+    x = special.softmax(logits)
+    return -affinity_entropy(x, kernel, p)
 
 
 def qre_exploitability(
@@ -203,16 +284,21 @@ def affinity_lle(
 
 def max_affinity_entropy(
     pt: NDArray[np.floating],
-    iterations: int = 100
+    kernels: Optional[list[NDArray[np.floating]]] = None,
+    var: float = 1e-1,
+    p: float = 1.0
 ) -> list[NDArray[np.floating]]:
     """Compute maximum affinity entropy distribution.
 
     This provides the target distribution for LLE annealing.
-    Uses iterated best response with entropy regularization.
+    Maximizes the affinity entropy from Liu et al. 2025 using
+    a Gaussian similarity kernel over strategy payoff vectors.
 
     Args:
         pt: Payoff tensor
-        iterations: Number of iterations for convergence
+        kernels: Pre-computed similarity kernels (optional)
+        var: Gaussian kernel variance (used if kernels not provided)
+        p: Entropy order parameter
 
     Returns:
         List of strategy distributions per player
@@ -220,19 +306,24 @@ def max_affinity_entropy(
     npl = pt.shape[0]
     na = pt.shape[1:]
 
-    # Initialize with uniform distributions
-    x = [np.ones(n) / n for n in na]
+    if kernels is None:
+        kernels = construct_kernels(pt, var)
 
-    # Iterate to find max entropy fixed point
-    for _ in range(iterations):
-        new_x = []
-        for p in range(npl):
-            grad_p = _pt_grad(pt, x, p)
-            # Softmax with temperature 1 gives max entropy best response
-            new_x.append(special.softmax(grad_p))
-        x = new_x
+    dists = []
+    for player in range(npl):
+        n = na[player]
+        logits0 = np.zeros(n)
+        kernel = kernels[player]
 
-    return x
+        res = minimize(
+            _affinity_entropy_logits,
+            x0=logits0,
+            args=(kernel, p),
+            method='L-BFGS-B'
+        )
+        dists.append(special.softmax(res.x))
+
+    return dists
 
 
 @register_solver("lle")
@@ -258,11 +349,15 @@ class LLESolver:
         temperature_init: float = 1.0,
         gamma: float = 0.99,
         num_anneals: int = 500,
+        var: float = 1e-1,
+        p: float = 1.0,
         verbose: bool = False
     ):
         self.temperature_init = temperature_init
         self.gamma = gamma
         self.num_anneals = num_anneals
+        self.var = var
+        self.p = p
         self.verbose = verbose
 
     def solve(self, payoff_matrix: NDArray[np.floating]) -> NDArray[np.floating]:
@@ -290,8 +385,9 @@ class LLESolver:
         # Convert to payoff tensor
         pt = _payoff_tensor_from_matrix(payoff_matrix)
 
-        # Compute max affinity entropy as starting point
-        max_aff_ent = max_affinity_entropy(pt)
+        # Compute kernels and max affinity entropy as starting point
+        kernels = construct_kernels(pt, self.var)
+        max_aff_ent = max_affinity_entropy(pt, kernels=kernels, var=self.var, p=self.p)
 
         # Run LLE annealing
         final_strategy = affinity_lle(

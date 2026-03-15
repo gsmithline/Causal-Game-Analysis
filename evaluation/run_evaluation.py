@@ -394,6 +394,12 @@ Examples:
         metavar="SPEC",
         help="OpenAI model specs to load (e.g. 5 5.2:none 5.2:low 5.1:medium)"
     )
+    parser.add_argument(
+        "--exclude",
+        nargs="+",
+        metavar="STRATEGY",
+        help="Exclude these strategies from the run (e.g. --exclude walk tough)"
+    )
 
     args = parser.parse_args()
 
@@ -423,6 +429,15 @@ Examples:
                 print(f"Loaded OpenAI strategy: {strat.name}")
             except Exception as e:
                 print(f"Error loading OpenAI model {spec}: {e}")
+
+    # Remove excluded strategies
+    if args.exclude:
+        for name in args.exclude:
+            if name in strategies:
+                del strategies[name]
+                print(f"Excluded strategy: {name}")
+            else:
+                print(f"Warning: --exclude '{name}' not found in loaded strategies")
 
     print(f"Loaded {len(strategies)} strategies: {list(strategies.keys())}")
 

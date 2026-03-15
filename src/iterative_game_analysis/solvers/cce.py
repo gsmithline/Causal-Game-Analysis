@@ -17,13 +17,13 @@ from typing import TYPE_CHECKING, Optional
 import cvxpy as cp
 import numpy as np
 
-from iterative_game_analysis.solvers.base import register_solver
-from iterative_game_analysis.solvers.lle import max_affinity_entropy, _payoff_tensor_from_matrix
+from .base import register_solver
+from .lle import max_affinity_entropy, construct_kernels, _payoff_tensor_from_matrix
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
-EPSILON = 1e-10
+EPSILON = 1e-4
 
 
 def _build_cce_constraints(
@@ -84,6 +84,9 @@ def _build_cce_constraints(
 def solve_cce_min_kl(
     pt: NDArray[np.floating],
     target_joint: Optional[NDArray[np.floating]] = None,
+    kernels: Optional[list] = None,
+    var: float = 1e-1,
+    p: float = 1.0,
     verbose: bool = False
 ) -> tuple[NDArray[np.floating], list[NDArray[np.floating]], float]:
     """Solve for CCE with minimum KL-divergence to target distribution.
@@ -91,6 +94,9 @@ def solve_cce_min_kl(
     Args:
         pt: Payoff tensor of shape (num_players, *action_dims)
         target_joint: Target joint distribution (default: max-aff-ent product)
+        kernels: Pre-computed similarity kernels (optional)
+        var: Gaussian kernel variance for affinity entropy
+        p: Entropy order parameter
         verbose: Whether to print solver output
 
     Returns:
@@ -105,7 +111,7 @@ def solve_cce_min_kl(
 
     # Compute max affinity entropy if no target provided
     if target_joint is None:
-        max_aff_ent_xs = max_affinity_entropy(pt)
+        max_aff_ent_xs = max_affinity_entropy(pt, kernels=kernels, var=var, p=p)
         # Compute product distribution
         target_joint = max_aff_ent_xs[0]
         for i in range(1, npl):
@@ -130,7 +136,7 @@ def solve_cce_min_kl(
     # Constraints
     cons = [
         cp.sum(x) == 1,  # Valid distribution
-        constraints_matrix @ x <= EPSILON,  # CCE incentive constraints
+        constraints_matrix @ x <= 0,  # CCE incentive constraints
     ]
 
     prob = cp.Problem(objective, cons)
@@ -233,7 +239,9 @@ class CCESolver:
         verbose: Whether to print solver output (default False)
     """
 
-    def __init__(self, verbose: bool = False):
+    def __init__(self, var: float = 1e-1, p: float = 1.0, verbose: bool = False):
+        self.var = var
+        self.p = p
         self.verbose = verbose
         self._last_joint = None
         self._last_kl = None
@@ -264,7 +272,9 @@ class CCESolver:
         pt = _payoff_tensor_from_matrix(payoff_matrix)
 
         # Solve CCE
-        joint, marginals, kl = solve_cce_min_kl(pt, verbose=self.verbose)
+        joint, marginals, kl = solve_cce_min_kl(
+            pt, var=self.var, p=self.p, verbose=self.verbose
+        )
 
         # Store for inspection
         self._last_joint = joint
@@ -290,7 +300,7 @@ class CCESolver:
             Tuple of (joint distribution, marginals, KL-divergence)
         """
         pt = _payoff_tensor_from_matrix(payoff_matrix)
-        return solve_cce_min_kl(pt, verbose=self.verbose)
+        return solve_cce_min_kl(pt, var=self.var, p=self.p, verbose=self.verbose)
 
     @property
     def last_joint(self) -> Optional[NDArray[np.floating]]:

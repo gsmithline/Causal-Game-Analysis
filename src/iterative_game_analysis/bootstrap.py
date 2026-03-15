@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Callable, Generic, TypeVar
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from iterative_game_analysis.metagame import MetaGame
-from iterative_game_analysis.utils import compute_regret
+from .metagame import MetaGame
+from .utils import compute_regret
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 import itertools
 
-from iterative_game_analysis.analysis import shapley_value, banzhaf_value
-from iterative_game_analysis.utils import l1_norm
+from .analysis import shapley_value, banzhaf_value
+from .utils import l1_norm
 
 
 def _solve_coalition(args):

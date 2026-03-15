@@ -1,0 +1,7 @@
+[
+    {"model": "5.2", "reasoning_effort": "none"},
+    {"model": "5.2", "reasoning_effort": "low"},
+    {"model": "5.4", "reasoning_effort": "low"},
+    {"model": "5.2", "reasoning_effort": "medium"},
+    {"model": "5.4", "reasoning_effort": "medium"}
+]

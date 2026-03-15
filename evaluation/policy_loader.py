@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, Tuple, Optional, Callable, List
 from dataclasses import dataclass, field
 import numpy as np
+import json
 
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -412,11 +413,11 @@ def load_openai_strategy(name: str, path: Path, model: str = "5.2",
                           Only sent to models that support it.
     """
     # Only pass reasoning_effort for models that support it
-    REASONING_MODELS = ("5.1", "5.2", "5.2-pro")
+    REASONING_MODELS = ("5.1", "5.2", "5.2-pro", "5.4", "5.4-pro")
     effort = reasoning_effort if model in REASONING_MODELS else None
 
     # API model ID needs "gpt-" prefix
-    GPT_PREFIX_MODELS = ("5", "5.1", "5.2", "5.2-pro")
+    GPT_PREFIX_MODELS = ("5", "5.1", "5.2", "5.2-pro", "5.4", "5.4-pro")
     api_model = f"gpt-{model}" if model in GPT_PREFIX_MODELS else model
 
     p1_policy = OpenAIPolicy(model=api_model, reasoning_effort=effort)
@@ -494,6 +495,25 @@ def discover_strategies(strategies_dir: Path) -> Dict[str, Strategy]:
         algorithm = subdir.name.lower()
         if algorithm not in STRATEGY_LOADERS:
             print(f"Skipping unknown algorithm directory: {subdir.name}")
+            continue
+
+        # Auto-discover LLM strategies from models.json
+        if algorithm == "llm_strategies":
+            models_file = subdir / "models.json"
+            if models_file.exists():
+                with open(models_file) as f:
+                    model_configs = json.load(f)
+                for cfg in model_configs:
+                    try:
+                        strat = load_openai_strategy(
+                            name="openai", path=subdir,
+                            model=cfg["model"],
+                            reasoning_effort=cfg.get("reasoning_effort", "none"),
+                        )
+                        strategies[strat.name] = strat
+                        print(f"Loaded strategy: {strat.name}")
+                    except Exception as e:
+                        print(f"Error loading OpenAI {cfg}: {e}")
             continue
 
         try:

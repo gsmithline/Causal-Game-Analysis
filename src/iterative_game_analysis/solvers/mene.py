@@ -12,13 +12,13 @@ from typing import TYPE_CHECKING
 import cvxpy as cp
 import numpy as np
 
-from iterative_game_analysis.solvers.base import register_solver
-from iterative_game_analysis.utils import simplex_projection
+from .base import register_solver
+from ..utils import simplex_projection
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
-EPSILON = 1e-6
+EPSILON = 1e-5
 
 
 @register_solver("mene")
@@ -35,7 +35,7 @@ class MENESolver:
             but slower computation. Default is 100.
     """
 
-    def __init__(self, discrete_factors: int = 2000):
+    def __init__(self, discrete_factors: int = 100):
         self.discrete_factors = discrete_factors
 
     def solve(self, payoff_matrix: NDArray[np.floating]) -> NDArray[np.floating]:
@@ -179,19 +179,22 @@ def milp_max_entropy_ne(
 
     prob = cp.Problem(obj, constraints)
 
-    # Try ECOS_BB first, fall back to GLPK_MI
-    try:
-        prob.solve(solver="ECOS_BB")
-        if prob.status != "optimal":
-            raise ValueError(f"ECOS_BB failed with status: {prob.status}")
-    except Exception as e:
-        warnings.warn(f"ECOS_BB failed: {e}, trying GLPK_MI")
+    # Try MILP solvers in order of preference
+    milp_solvers = ["ECOS_BB", "GLPK_MI", "HIGHS"]
+    solved = False
+    last_err = None
+    for solver_name in milp_solvers:
         try:
-            prob.solve(solver="GLPK_MI")
-            if prob.status != "optimal":
-                raise ValueError(f"GLPK_MI failed with status: {prob.status}")
-        except Exception as e2:
-            raise RuntimeError(f"Both solvers failed. GLPK_MI error: {e2}") from e2
+            prob.solve(solver=solver_name)
+            if prob.status in ("optimal", "optimal_inaccurate"):
+                solved = True
+                break
+            else:
+                last_err = f"{solver_name} status: {prob.status}"
+        except Exception as e:
+            last_err = f"{solver_name}: {e}"
+    if not solved:
+        raise RuntimeError(f"All MILP solvers failed. Last error: {last_err}")
 
     # Project to simplex and validate
     ne_strategy = simplex_projection(x.value.reshape(-1))

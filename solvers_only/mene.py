@@ -8,7 +8,7 @@ import cvxpy as cp
 import nashpy as nash
 import multiprocessing
 
-EPSILON = 1e-4
+EPSILON = 1e-5
 def _simplex_projection(x):
     """
     Project onto probability simplex.

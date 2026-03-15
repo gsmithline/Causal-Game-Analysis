@@ -246,7 +246,7 @@ class OpenAIPolicy(nn.Module):
             api_key=self._api_key,
         )
 
-    def _query_llm(self, state: dict) -> Tuple[str, Optional[list]]:
+    def query_llm(self, state: dict) -> Tuple[str, Optional[list]]:
         """Send game state to the LLM and get a response.
 
         Returns:
@@ -298,7 +298,7 @@ class OpenAIPolicy(nn.Module):
         for i in range(batch_size):
             state = _parse_obs(obs[i])
             prompt = _build_user_prompt(state)
-            response_text, reasoning_summary = self._query_llm(state)
+            response_text, reasoning_summary = self.query_llm(state)
             action_idx = _parse_llm_response(response_text, action_mask[i], state["player"])
             logits[i, action_idx] = 0.0
 

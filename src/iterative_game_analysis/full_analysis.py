@@ -6,7 +6,7 @@ analysis on crossplay data.
 
 Typical usage:
 
-    from iterative_game_analysis.full_analysis import (
+    from .full_analysis import (
         load_crossplay_to_dataframe,
         run_full_pipeline,
         save_results,
@@ -31,7 +31,7 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 
-from iterative_game_analysis.bootstrap import Bootstrap
+from .bootstrap import Bootstrap
 
 # Item quantities for the bargaining game
 ITEM_QUANTITIES = np.array([7, 4, 1])

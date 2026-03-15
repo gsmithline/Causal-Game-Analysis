@@ -31,9 +31,9 @@ Example usage:
 
 __version__ = "0.1.0"
 
-from iterative_game_analysis.metagame import MetaGame
-from iterative_game_analysis.bootstrap import Bootstrap
-from iterative_game_analysis.analysis import (
+from .metagame import MetaGame
+from .bootstrap import Bootstrap
+from .analysis import (
     # Level 1
     baseline_value,
     partner_lift,
@@ -49,8 +49,8 @@ from iterative_game_analysis.analysis import (
     ef1_frequency_matrix,
     aggregate_ef1_between_groups,
 )
-from iterative_game_analysis.solvers import Solver, get_solver, MENESolver
-from iterative_game_analysis.full_analysis import (
+from .solvers import Solver, get_solver, MENESolver
+from .full_analysis import (
     load_crossplay_to_dataframe,
     run_full_pipeline,
     aggregate_results,
