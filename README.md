@@ -2,21 +2,21 @@
 
 ### Motivation
 
-Multi-agent ecosystems are increasingly evaluated through empirical game-theoretic analysis (EGTA), where agents interact in a metagame and equilibrium analysis summarizes the ecosystem's strategic behavior. However, standard equilibrium analysis only reveals what happens at the equilibrium — not which agents causally drive it. Nash equilibrium is known to violate independence of irrelevant alternatives (IIA): removing a strategy outside the equilibrium support can change the equilibrium entirely. This means that adding or removing a strategy — even one outside the equilibrium support — can shift which equilibrium is selected and alter its welfare, fairness, or cooperation properties. A strategy that does not rank highest on any individual metric may nonetheless drive higher cooperation or welfare at equilibrium through its strategic interactions with other agents. Standard EGTA has no tools to detect these effects. Measuring cooperation and social welfare in multi-agent systems has been a longstanding goal, with various metrics proposed for quantifying agent behavior (e.g., cooperation rates, social welfare, fairness indices). As LLMs are increasingly deployed as autonomous agents in strategic settings, understanding how their presence affects emergent cooperation and welfare in multi-agent populations is of growing practical importance. We contribute an alternate framing: rather than measuring cooperation as a property of individual agents, we measure each agent's *causal contribution* to cooperation and welfare at equilibrium — asking not "how cooperative is this agent?" but "how much does this agent's presence cause the equilibrium to be more cooperative?"
+Multi-agent ecosystems are increasingly evaluated through empirical game-theoretic analysis (EGTA), where agents interact in a metagame and equilibrium analysis summarizes the ecosystem's strategic behavior. However, standard equilibrium analysis only reveals what happens at the equilibrium,not which agents causally drive it. Nash equilibrium is known to violate independence of irrelevant alternatives (IIA): removing a strategy outside the equilibrium support can change the equilibrium entirely. This means that adding or removing a strategy,even one outside the equilibrium support,can shift which equilibrium is selected and alter its welfare, fairness, or cooperation properties. A strategy that does not rank highest on any individual metric may nonetheless drive higher cooperation or welfare at equilibrium through its strategic interactions with other agents. Standard EGTA has no tools to detect these effects. Measuring cooperation and social welfare in multi-agent systems has been a longstanding goal, with various metrics proposed for quantifying agent behavior (e.g., cooperation rates, social welfare, fairness indices). As LLMs are increasingly deployed as autonomous agents in strategic settings, understanding how their presence affects emergent cooperation and welfare in multi-agent populations is of growing practical importance. We contribute an alternate framing: rather than measuring cooperation as a property of individual agents, we measure each agent's *causal contribution* to cooperation and welfare at equilibrium,asking not "how cooperative is this agent?" but "how much does this agent's presence cause the equilibrium to be more cooperative?"
 
-As multi-agent competitions scale — from Kaggle's [Game Arena](https://www.kaggle.com/game-arena) where LLMs compete in Werewolf, Poker, and Chess, to PSRO-trained leagues like AlphaStar — the need for causal evaluation grows: practitioners need to know not just which agents win, but which agents' presence shapes the ecosystem's equilibrium behavior.
+As multi-agent competitions scale,from Kaggle's [Game Arena](https://www.kaggle.com/game-arena) where LLMs compete in Werewolf, Poker, and Chess, to PSRO-trained leagues like AlphaStar,the need for causal evaluation grows: practitioners need to know not just which agents win, but which agents' presence shapes the ecosystem's equilibrium behavior.
 
 ### Framework
 
-We introduce a counterfactual credit assignment framework for empirical metagames that measures each agent's causal contribution to equilibrium outcomes via leave-one-out analysis and Harsanyi interaction dividends, with paired bootstrap inference for statistical significance. We address the challenge of multiple equilibria — which renders LOO effects solver-dependent — through CURB welfare intervals that bound the range of equilibrium outcomes across stable basins, separating strategic uncertainty from statistical uncertainty. We extend the meta-game evaluation framework of Zun Li et al. and support multiple solution concepts (MENE, maxent CCE, max affinity entropy).
+We introduce a counterfactual credit assignment framework for empirical metagames that measures each agent's causal contribution to equilibrium outcomes via leave-one-out analysis and Harsanyi interaction dividends, with paired bootstrap inference for statistical significance. We address the challenge of multiple equilibria,which renders LOO effects solver-dependent,through CURB welfare intervals that bound the range of equilibrium outcomes across stable basins, separating strategic uncertainty from statistical uncertainty. We extend the meta-game evaluation framework of Zun Li et al. and support multiple solution concepts (MENE, maxent CCE, max affinity entropy).
 
 ### Key Findings
 
-We evaluate across multiple domains — a multi-agent bargaining game with RL and LLM agents, and iterated matrix games (Prisoner's Dilemma, Hawk-Dove) — and find that individual performance diverges from ecosystem contribution, that solution concept choice qualitatively changes which agents are identified as important, and that agents outside the equilibrium support can have the largest causal effects — empirically confirming that IIA violations in metagames are not merely theoretical but have substantial consequences for multi-agent evaluation.
+We evaluate across multiple domains,a multi-agent bargaining game with RL and LLM agents, and iterated matrix games (Prisoner's Dilemma, Hawk-Dove),and find that individual performance diverges from ecosystem contribution, that solution concept choice qualitatively changes which agents are identified as important, and that agents outside the equilibrium support can have the largest causal effects,empirically confirming that IIA violations in metagames are not merely theoretical but have substantial consequences for multi-agent evaluation.
 
 ### Connection to Agent Importance in MARL
 
-Recent work on explainable multi-agent importance (EMAI, Xu et al. 2024) measures agent importance through counterfactual reasoning: randomize an agent's actions and measure the reward change. Our framework applies a similar counterfactual logic at the metagame level — but instead of randomizing actions uniformly, we evaluate outcomes at equilibrium under a chosen solution concept. This grounds the counterfactual in strategic reasoning: the importance of an agent is measured by how its presence or absence affects the equilibrium behavior of the ecosystem, not just average performance.
+Recent work on explainable multi-agent importance (EMAI, Xu et al. 2024) measures agent importance through counterfactual reasoning: randomize an agent's actions and measure the reward change. Our framework applies a similar counterfactual logic at the metagame level,but instead of randomizing actions uniformly, we evaluate outcomes at equilibrium under a chosen solution concept. This grounds the counterfactual in strategic reasoning: the importance of an agent is measured by how its presence or absence affects the equilibrium behavior of the ecosystem, not just average performance.
 
 ## Installation
 
@@ -101,13 +101,13 @@ Pairwise interaction effects between agents sᵢ and sⱼ:
 Δ²W(sᵢ, sⱼ | Ĝ_{S↓X}) := W_S(Ĝ_{S↓X}) − W_S(Ĝ_{S↓X\{sᵢ}}) − W_S(Ĝ_{S↓X\{sⱼ}}) + W_S(Ĝ_{S↓X\{sᵢ,sⱼ}})
 ```
 
-- **Δ² > 0**: complementary — together they contribute more than the sum of parts
-- **Δ² < 0**: substitutes — individually helpful but redundant together
-- **Δ² ≈ 0**: independent — their effects don't interact
+- **Δ² > 0**: complementary,together they contribute more than the sum of parts
+- **Δ² < 0**: substitutes,individually helpful but redundant together
+- **Δ² ≈ 0**: independent,their effects don't interact
 
 ### Synergy Index (Emergence Detection)
 
-The Synergy Index (cf. MACIE, Weinberg 2025) measures whether the multi-agent ecosystem exhibits emergence — collective performance at equilibrium exceeding the sum of individual contributions:
+The Synergy Index (cf. MACIE, Weinberg 2025) measures whether the multi-agent ecosystem exhibits emergence,collective performance at equilibrium exceeding the sum of individual contributions:
 
 ```
 SI = (W(X) − Σᵢ W({sᵢ})) / max(W(X), Σᵢ W({sᵢ}))
@@ -115,9 +115,9 @@ SI = (W(X) − Σᵢ W({sᵢ})) / max(W(X), Σᵢ W({sᵢ}))
 
 Where W(X) is welfare at the full-game equilibrium and W({sᵢ}) is agent sᵢ's self-play payoff (M[i,i]). In a metagame, self-play represents the outcome when only that agent exists in the ecosystem.
 
-- **SI > 0**: positive emergence — the ecosystem at equilibrium produces more welfare than the sum of individual agents in isolation. Strategic diversity creates value.
-- **SI < 0**: negative emergence — agents interfere with each other. The ecosystem at equilibrium is worse than agents operating independently.
-- **SI ≈ 0**: no emergence — collective welfare is approximately the sum of parts.
+- **SI > 0**: positive emergence,the ecosystem at equilibrium produces more welfare than the sum of individual agents in isolation. Strategic diversity creates value.
+- **SI < 0**: negative emergence,agents interfere with each other. The ecosystem at equilibrium is worse than agents operating independently.
+- **SI ≈ 0**: no emergence,collective welfare is approximately the sum of parts.
 
 The Synergy Index complements LOO effects (individual importance) and Harsanyi dividends (pairwise interactions) by providing a single system-level measure of whether strategic interaction creates or destroys value.
 
@@ -147,8 +147,8 @@ d_b = W(full, b) − W(LOO_i, b)
 
 | Solver | Description |
 |--------|-------------|
-| MENE | Maximum Entropy Nash Equilibrium — unique NE maximizing Shannon entropy |
-| Maxent CCE | Maximum Entropy Coarse Correlated Equilibrium — unique CCE maximizing entropy over the CE polytope (via Polarix) |
+| MENE | Maximum Entropy Nash Equilibrium,unique NE maximizing Shannon entropy |
+| Maxent CCE | Maximum Entropy Coarse Correlated Equilibrium,unique CCE maximizing entropy over the CE polytope (via Polarix) |
 | Max Affinity Entropy | Nash equilibrium with affinity entropy regularization (via Polarix) |
 
 ### Solver Sensitivity
@@ -159,7 +159,7 @@ Equilibrium selection affects all metrics:
 Sens(S₁, S₂; X) := W_{S₁}(X) − W_{S₂}(X)
 ```
 
-Different solution concepts can identify different agents as causally important. MENE may concentrate on one set of agents while maxent CCE favors another — this divergence is itself an important finding.
+Different solution concepts can identify different agents as causally important. MENE may concentrate on one set of agents while maxent CCE favors another,this divergence is itself an important finding.
 
 ---
 
@@ -207,11 +207,11 @@ Instead of pairwise Harsanyi dividends between individual agents, we can compute
 
 Where W(C) is welfare at equilibrium within the CURB set, and W(X\C) is welfare at equilibrium of everything outside it. This measures whether the CURB set and the non-CURB strategies create value together or independently:
 
-- **Positive**: the CURB set and outside strategies are complementary — they create value together that neither group achieves alone
-- **Negative**: they interfere — the CURB set is better off without the outsiders, or vice versa
+- **Positive**: the CURB set and outside strategies are complementary,they create value together that neither group achieves alone
+- **Negative**: they interfere,the CURB set is better off without the outsiders, or vice versa
 - **Zero**: they are independent ecosystems
 
-This also addresses the problem of wide individual LOO CIs for interchangeable agents (e.g., the RL trio {ppo, psro, mappo}). Individual LOO effects have wide CIs because removing one just shifts weight to the others, but a group-level LOO — removing the entire CURB set — produces a clean, significant effect. CURB sets provide a principled, game-theoretically motivated grouping for this aggregation.
+This also addresses the problem of wide individual LOO CIs for interchangeable agents (e.g., the RL trio {ppo, psro, mappo}). Individual LOO effects have wide CIs because removing one just shifts weight to the others, but a group-level LOO,removing the entire CURB set,produces a clean, significant effect. CURB sets provide a principled, game-theoretically motivated grouping for this aggregation.
 
 ### Finding CURB Sets via LP
 
@@ -236,7 +236,7 @@ If feasible for all πᵢ ∈ C and infeasible for all πᵢ ∉ C, then C is CU
 | NW | Nash Welfare: (u₁ · u₂)^(1/2) |
 | NW+ | Nash Welfare on advantages: (u₁⁺ · u₂⁺)^(1/2) where u⁺ = max{0, u − BATNA} |
 | EF1 | Envy-Free up to One Item frequency |
-| Regret | u(σ*) − u(π, σ*₋ᵢ) — deviation incentive at equilibrium |
+| Regret | u(σ*) − u(π, σ*₋ᵢ),deviation incentive at equilibrium |
 
 ### Iterated Matrix Game Domains (PD, Hawk-Dove)
 
@@ -260,7 +260,7 @@ Strategies from the [Axelrod Python library](https://github.com/Axelrod-project/
 
 ### 3. Iterated Hawk-Dove
 
-Same Axelrod strategies under Hawk-Dove payoffs (anti-coordination). Different game structure reveals different causal patterns — e.g., Cooperator helps welfare in Hawk-Dove but hurts in PD.
+Same Axelrod strategies under Hawk-Dove payoffs (anti-coordination). Different game structure reveals different causal patterns,e.g., Cooperator helps welfare in Hawk-Dove but hurts in PD.
 
 ---
 
