@@ -1,6 +1,18 @@
 # Causal EGTA: Counterfactual Analysis of Multi-Agent Ecosystems
 
-This project extends the meta-game evaluation framework of Zun Li et al. and empirical game-theoretic analysis (EGTA) with a causal inference layer for understanding how individual agents shape equilibrium behavior in multi-agent ecosystems. In iterative EGTA pipelines like PSRO, agents are continually added to a growing strategy population, but the standard analysis stops at computing equilibria — it doesn't ask which agents causally drive equilibrium properties like welfare, fairness, or cooperation. We address this by applying leave-one-out counterfactual analysis and Harsanyi interaction dividends to the metagame, measuring each agent's causal contribution to equilibrium outcomes under multiple solution concepts (MENE, maxent CCE, max affinity entropy). Using paired bootstrap tests for statistical inference and the full CURB lattice — since every Nash equilibrium is guaranteed to live in some CURB set — we characterize the space of stable equilibria and report welfare intervals that separate strategic uncertainty (which equilibrium is played) from statistical uncertainty (payoff estimation noise). We evaluate across multiple domains — a multi-agent bargaining game with RL and LLM agents, and iterated matrix games (Prisoner's Dilemma, Hawk-Dove) — finding that individual performance diverges from ecosystem contribution, that solution concept choice qualitatively changes which agents are identified as important, and that pairwise interaction effects reveal substitution and complementarity patterns invisible from standard metagame analysis.
+### Motivation
+
+Multi-agent ecosystems are increasingly evaluated through empirical game-theoretic analysis (EGTA), where agents interact in a metagame and equilibrium analysis summarizes the ecosystem's strategic behavior. However, standard equilibrium analysis only reveals what happens at the equilibrium — not which agents causally drive it. Nash equilibrium is known to violate independence of irrelevant alternatives (IIA): removing a strategy outside the equilibrium support can change the equilibrium entirely. This means that adding or removing a strategy — even one outside the equilibrium support — can shift which equilibrium is selected and alter its welfare, fairness, or cooperation properties. A strategy that does not rank highest on any individual metric may nonetheless drive higher cooperation or welfare at equilibrium through its strategic interactions with other agents. Standard EGTA has no tools to detect these effects. Measuring cooperation and social welfare in multi-agent systems has been a longstanding goal, with various metrics proposed for quantifying agent behavior (e.g., cooperation rates, social welfare, fairness indices). We contribute an alternate framing: rather than measuring cooperation as a property of individual agents, we measure each agent's *causal contribution* to cooperation and welfare at equilibrium — asking not "how cooperative is this agent?" but "how much does this agent's presence cause the equilibrium to be more cooperative?"
+
+As multi-agent competitions scale — from Kaggle's [Game Arena](https://www.kaggle.com/game-arena) where LLMs compete in Werewolf, Poker, and Chess, to PSRO-trained leagues like AlphaStar — the need for causal evaluation grows: practitioners need to know not just which agents win, but which agents' presence shapes the ecosystem's equilibrium behavior.
+
+### Framework
+
+We introduce a counterfactual credit assignment framework for empirical metagames that measures each agent's causal contribution to equilibrium outcomes via leave-one-out analysis and Harsanyi interaction dividends, with paired bootstrap inference for statistical significance. We address the challenge of multiple equilibria — which renders LOO effects solver-dependent — through CURB welfare intervals that bound the range of equilibrium outcomes across stable basins, separating strategic uncertainty from statistical uncertainty. We extend the meta-game evaluation framework of Zun Li et al. and support multiple solution concepts (MENE, maxent CCE, max affinity entropy).
+
+### Key Findings
+
+We evaluate across multiple domains — a multi-agent bargaining game with RL and LLM agents, and iterated matrix games (Prisoner's Dilemma, Hawk-Dove) — and find that individual performance diverges from ecosystem contribution, that solution concept choice qualitatively changes which agents are identified as important, and that agents outside the equilibrium support can have the largest causal effects — empirically confirming that IIA violations in metagames are not merely theoretical but have substantial consequences for multi-agent evaluation.
 
 ### Connection to Agent Importance in MARL
 
@@ -184,6 +196,22 @@ LOO effects computed within each CURB set:
 ```
 
 An agent may be essential in one CURB set but irrelevant in another.
+
+### CURB-Level Interaction Effects
+
+Instead of pairwise Harsanyi dividends between individual agents, we can compute interaction effects between a CURB set and the rest of the game:
+
+```
+Δ²W(C, X\C) = W(X) − W(C) − W(X\C) + W(∅)
+```
+
+Where W(C) is welfare at equilibrium within the CURB set, and W(X\C) is welfare at equilibrium of everything outside it. This measures whether the CURB set and the non-CURB strategies create value together or independently:
+
+- **Positive**: the CURB set and outside strategies are complementary — they create value together that neither group achieves alone
+- **Negative**: they interfere — the CURB set is better off without the outsiders, or vice versa
+- **Zero**: they are independent ecosystems
+
+This also addresses the problem of wide individual LOO CIs for interchangeable agents (e.g., the RL trio {ppo, psro, mappo}). Individual LOO effects have wide CIs because removing one just shifts weight to the others, but a group-level LOO — removing the entire CURB set — produces a clean, significant effect. CURB sets provide a principled, game-theoretically motivated grouping for this aggregation.
 
 ### Finding CURB Sets via LP
 
