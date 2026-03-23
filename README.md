@@ -14,6 +14,10 @@ As LLMs are increasingly deployed as autonomous agents in strategic settings, un
 
 Recent work on explainable multi-agent importance (EMAI, Xu et al. 2024) measures agent importance through counterfactual reasoning: randomize an agent's actions and measure the reward change. Our framework applies a similar counterfactual logic at the metagame level, but instead of randomizing actions uniformly, we evaluate outcomes at equilibrium under a chosen solution concept. This grounds the counterfactual in strategic reasoning: the importance of an agent is measured by how its presence or absence affects the equilibrium, not just average performance.
 
+### Connection to Equilibrium-Based Rating Methods
+
+Recent work on equilibrium-based evaluation includes clone-invariant deviation ratings (Marris et al. 2025), which rate strategies robustly under CCE, and within-equilibrium marginal decompositions (Liu et al. 2025), which attribute ratings to co-player contributions at a fixed equilibrium. Both operate within a single equilibrium and focus on competitive rating. Our approach is complementary: we perform interventional counterfactual analysis (strategy removal with re-equilibration) across multiple equilibria (via CURB sets), measuring causal contributions to welfare and cooperation rather than competitive rankings. This captures effects that within-equilibrium methods cannot detect, such as agents outside the equilibrium support that reshape which equilibrium exists.
+
 ---
 
 ## Three Levels of Analysis
