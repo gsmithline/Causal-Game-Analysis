@@ -2,11 +2,11 @@
 
 ## Motivation
 
-The number of AI agents deployed in shared environments is growing. As these populations grow and agents increasingly interact strategically, understanding the impact of each agent on the broader dynamics — not just its individual performance — becomes a way to evaluate and manage them.
+The number of AI agents deployed in shared environments is growing. As these populations grow and agents increasingly interact strategically, understanding the impact of each agent on the broader dynamics, not just its individual performance, becomes a way to evaluate and manage them.
 
-Metagame analysis puts everything in strategic context — the equilibrium. Standard metagame analysis treats the equilibrium as given and evaluates agents within it: *how does each agent perform at equilibrium?* We additionally treat the equilibrium as something agents collectively produce: *what does each agent's presence contribute to the equilibrium being what it is?*
+Metagame analysis puts everything in strategic context: the equilibrium. Standard metagame analysis treats the equilibrium as given and evaluates agents within it: *how does each agent perform at equilibrium?* We additionally treat the equilibrium as something agents collectively produce: *what does each agent's presence contribute to the equilibrium being what it is?*
 
-Standard analysis decomposes welfare linearly: each agent's share is `σ*ᵢ (M σ*)ᵢ`. But equilibrium is a nonlinear function of the strategy set — an agent's effect on the equilibrium is generally not predictable from its performance within it. This can reveal structural roles invisible to standard analysis: which agents are holding the current equilibrium in place, which would shift it to a qualitatively different one, and which are substitutable.
+Standard analysis decomposes welfare linearly: each agent's share is `σ*ᵢ (M σ*)ᵢ`. But equilibrium is a nonlinear function of the strategy set, so an agent's effect on the equilibrium is generally not predictable from its performance within it. This can reveal structural roles invisible to standard analysis: which agents are holding the current equilibrium in place, which would shift it to a qualitatively different one, and which are substitutable.
 
 ### Worked Example (Bargaining Domain, Average Game)
 
@@ -20,7 +20,7 @@ The MENE equilibrium of the average game is 79% PPO and 21% PSRO. All other agen
 
 **Removing PPO** (79% support):
 - Equilibrium shifts: 79% PPO / 21% PSRO → 80% MAPPO / 20% PSRO
-- Near-zero welfare impact — MAPPO is a functional copy of PPO
+- Near-zero welfare impact because MAPPO is a functional copy of PPO
 - The dominant agent is entirely substitutable
 
 **Removing PSRO** (21% support, ranks 7th-10th across welfare/fairness metrics):
@@ -38,7 +38,7 @@ The MENE equilibrium of the average game is 79% PPO and 21% PSRO. All other agen
 | mappo | 20 | [-3.57, 0.00] | [-0.72, 0.00] | [-0.36, 0.00] | [-0.063, 0.00] | [-0.015, 0.00] | Robustly harmful |
 | 5.2_low | 20 | [-46.92, 0.00] | [-28.63, 0.00] | [-4.41, 0.00] | [-0.197, 0.00] | [-0.077, 0.00] | Robustly harmful |
 
-Although 5.2_low has zero support in the full-game equilibrium, it has the largest worst-case CURB LOO magnitude (-46.92 UW) of any agent. PPO's effect is identical across all 16 CURB sets it appears in — completely robust. PSRO is the only agent whose effect is CURB-dependent, ranging from -45.34 to +6.67 depending on the strategic context.
+Although 5.2_low has zero support in the full-game equilibrium, it has the largest worst-case CURB LOO magnitude (-46.92 UW) of any agent. PPO's effect is identical across all 16 CURB sets it appears in, completely robust. PSRO is the only agent whose effect is CURB-dependent, ranging from -45.34 to +6.67 depending on the strategic context.
 
 ### Independence of Irrelevant Strategies
 
