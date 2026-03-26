@@ -2,11 +2,47 @@
 
 ## Motivation
 
-Empirical game-theoretic analysis (EGTA) and metagame analysis evaluate multi-agent systems by constructing a metagame over agent populations, computing equilibria, and ranking agents by their performance at equilibrium. As multi-agent competitions grow in scale and importance, from Kaggle's [Game Arena](https://www.kaggle.com/game-arena) where LLMs compete in social deduction games to PSRO-trained leagues, and as LLMs are increasingly deployed as autonomous agents in strategic settings, there is growing interest in understanding not just which agents perform well, but which agents' presence shapes the strategic landscape of the system.
+The number of AI agents deployed in shared environments is growing. As these populations grow and agents increasingly interact strategically, understanding the impact of each agent on the broader dynamics — not just its individual performance — becomes a way to evaluate and manage them.
 
-Standard metagame analysis answers the question: "how does each agent perform at equilibrium?" But this misses a deeper question: "which agents causally drive the equilibrium's welfare, cooperation, and fairness?" These questions can have very different answers. An agent that dominates the equilibrium (high weight, low regret) may be easily replaceable, while an agent outside the equilibrium support may be the reason that equilibrium exists at all. Measuring cooperation and social welfare in multi-agent systems has been a longstanding goal, with various metrics proposed for quantifying individual agent behavior. We contribute a methodology that shifts the question: rather than measuring cooperation as a property of individual agents, we measure each agent's *causal contribution* to cooperation and welfare at equilibrium, asking not "how cooperative is this agent?" but "how much does this agent's presence cause the equilibrium to be more cooperative?"
+Metagame analysis puts everything in strategic context — the equilibrium. Standard metagame analysis treats the equilibrium as given and evaluates agents within it: *how does each agent perform at equilibrium?* We additionally treat the equilibrium as something agents collectively produce: *what does each agent's presence contribute to the equilibrium being what it is?*
 
-This shift is motivated by a fundamental property of Nash equilibrium under strategy removal. The Nash equilibrium correspondence satisfies independence of irrelevant strategies (IIS) (Peleg & Tijs, 1996; Ray, 2000) in the contraction direction: removing a strategy outside the equilibrium support preserves existing equilibria, as it only eliminates potential deviations. However, NE fails IIS in the expansion direction: removing a strategy can *create* new equilibria by eliminating a profitable deviation that was previously destabilizing other profiles. Furthermore, equilibrium *selection* is not preserved: the equilibrium chosen by a given solver can change because the selection landscape shifts when a strategy is removed. This means that adding or removing a strategy from the metagame, even one with zero equilibrium weight, can change both which equilibria exist and which one is selected.
+Standard analysis decomposes welfare linearly: each agent's share is `σ*ᵢ (M σ*)ᵢ`. But equilibrium is a nonlinear function of the strategy set — an agent's effect on the equilibrium is generally not predictable from its performance within it. This can reveal structural roles invisible to standard analysis: which agents are holding the current equilibrium in place, which would shift it to a qualitatively different one, and which are substitutable.
+
+### Worked Example (Bargaining Domain, Average Game)
+
+The MENE equilibrium of the average game is 79% PPO and 21% PSRO. All other agents have zero support. One might expect only removing these two agents would shift the equilibrium.
+
+**Removing 5.2_low** (0% support, rank 1 in individual welfare):
+- Equilibrium shifts: 79% PPO / 21% PSRO → 68% PPO / 30% 5.4_medium / 2% PSRO
+- Welfare *improves* across all metrics: UW +10.87, NW +7.60, NW+ +4.41, EF1 +4.2%, EF1+ +7.7%
+- The magnitude of impact is larger than removing PPO, the 79% agent
+- 5.2_low is never played, but its presence as the best response to 5.4_medium prevents 5.4_medium from entering the equilibrium
+
+**Removing PPO** (79% support):
+- Equilibrium shifts: 79% PPO / 21% PSRO → 80% MAPPO / 20% PSRO
+- Near-zero welfare impact — MAPPO is a functional copy of PPO
+- The dominant agent is entirely substitutable
+
+**Removing PSRO** (21% support, ranks 7th-10th across welfare/fairness metrics):
+- Equilibrium shifts: 79% PPO / 21% PSRO → 44% 5.4_medium / 32% 5.2_low / 17% 5.2_medium / 7% 5.2_none
+- Regime change from RL-dominated to LLM-dominated equilibrium
+- Largest welfare impact of any agent: UW +39.08, NW +24.44, EF1 +16.8%
+- PSRO's presence forces a competitive equilibrium
+
+**CURB-conditional LOO** on the same game (23 CURB sets, 3 minimal singletons: {ppo}, {psro}, {mappo}):
+
+| Agent | n_curbs | UW [min, max] | NW [min, max] | NW+ [min, max] | EF1 [min, max] | EF1+ [min, max] | Classification |
+|-------|---------|---------------|---------------|----------------|----------------|-----------------|----------------|
+| ppo | 16 | [+6.26, +6.26] | [+4.00, +4.00] | [+2.04, +2.04] | [+0.041, +0.041] | [+0.010, +0.010] | Robustly helpful |
+| psro | 20 | [-45.34, +6.67] | [-28.44, +3.96] | [-13.95, +3.43] | [-0.209, +0.038] | [-0.284, +0.009] | CURB-dependent |
+| mappo | 20 | [-3.57, 0.00] | [-0.72, 0.00] | [-0.36, 0.00] | [-0.063, 0.00] | [-0.015, 0.00] | Robustly harmful |
+| 5.2_low | 20 | [-46.92, 0.00] | [-28.63, 0.00] | [-4.41, 0.00] | [-0.197, 0.00] | [-0.077, 0.00] | Robustly harmful |
+
+Although 5.2_low has zero support in the full-game equilibrium, it has the largest worst-case CURB LOO magnitude (-46.92 UW) of any agent. PPO's effect is identical across all 16 CURB sets it appears in — completely robust. PSRO is the only agent whose effect is CURB-dependent, ranging from -45.34 to +6.67 depending on the strategic context.
+
+### Independence of Irrelevant Strategies
+
+This shift is motivated by a fundamental property of Nash equilibrium under strategy removal. The Nash equilibrium correspondence satisfies independence of irrelevant strategies (IIS) (Peleg & Tijs, 1996; Ray, 2000) in the contraction direction: removing a strategy outside the equilibrium support preserves existing equilibria, as it only eliminates potential deviations. However, IIS only guarantees preservation of existing equilibria, not the absence of new ones: removing a strategy can *create* new equilibria by eliminating a profitable deviation that was previously destabilizing other profiles. Furthermore, equilibrium *selection* is not preserved: the equilibrium chosen by a given solver can change because the selection landscape shifts when a strategy is removed. This means that adding or removing a strategy from the metagame, even one with zero equilibrium weight, can change both which equilibria exist and which one is selected.
 
 Equilibrium selection is a well-studied open problem in game theory, and we make no claims of solving it here. Rather, we propose an add-on to metagame evaluation that accounts for multiple restricted games, multiple equilibria, and the causal role of individual agents across these settings. By examining how welfare and cooperation change as agents are added or removed from the strategy set, and by examining outcomes across strategically stable subsets (CURB sets), we provide evaluations that are informed by the structure of the equilibrium landscape rather than dependent on a single selection.
 
@@ -22,9 +58,11 @@ Recent work on equilibrium-based evaluation includes clone-invariant deviation r
 
 ## Three Levels of Analysis
 
+All three levels operate on the same bootstrapped empirical game per sample. One bootstrap resample of the raw game data induces the full game, all LOO restricted games, all LTO restricted games, and all CURB restricted games from the same resampled payoff matrix. Because every comparison within a bootstrap sample comes from the same resample, all differences are paired, canceling the dominant noise source and enabling tight confidence intervals.
+
 ### Level 1: Equilibrium Analysis (no counterfactuals)
 
-Standard EGTA. Solve for equilibrium on the full game and evaluate each agent's performance:
+Standard EGTA. Solve for equilibrium on the bootstrapped game and evaluate each agent's performance:
 
 ```
 σ*_X = S(Ĝ_{S↓X})
@@ -32,25 +70,20 @@ V_i(X) = M[i,:] @ σ*_X          (agent i's payoff at equilibrium)
 W(X) = σ*_Xᵀ M σ*_X             (aggregate welfare at equilibrium)
 ```
 
-This tells you what happens at the equilibrium and how each agent performs. No counterfactuals. Reports individual metrics (regret, payoff, fairness) at the selected equilibrium.
+This tells you what happens at the equilibrium and how each agent performs. No counterfactuals. Reports individual metrics (regret, payoff, fairness, cooperation) at the selected equilibrium. Answers: "how does each agent perform at equilibrium?"
 
 ### Level 2: Full-Game LOO (counterfactual, single solver)
 
-Remove agent sᵢ from the full game, re-solve for equilibrium, and measure the welfare change:
+For each bootstrap sample, remove agent sᵢ from the same bootstrapped game, re-solve for equilibrium, and measure the welfare change. All full-game and restricted-game solves use the same resampled payoff matrix, so LOO differences are paired across bootstrap index b:
 
 ```
 ΔW(sᵢ | X) = W(σ*_X) - W(σ*_{X\{sᵢ}})
-```
-
-Where both equilibria are found by the same solver S (e.g., MENE). Paired bootstrap provides confidence intervals: one resample of the raw data induces all subgames (full, LOO, LTO), so comparisons are paired across bootstrap index b:
-
-```
 d_b = W(full, b) - W(LOO_i, b)
 ```
 
-This measures each agent's causal contribution to equilibrium welfare. However, results are solver-dependent: different solution concepts can identify different agents as important.
+This measures each agent's causal contribution to equilibrium welfare. However, results are solver-dependent: different solution concepts can identify different agents as important. Answers: "which agents causally drive the equilibrium?"
 
-**Harsanyi Interaction Dividends** extend LOO to pairwise interactions:
+**Harsanyi Interaction Dividends** extend LOO to pairwise interactions, computed on the same bootstrap sample (full, LOO, and LTO all from one resample):
 
 ```
 Δ²W(sᵢ, sⱼ | X) = W(σ*_X) - W(σ*_{X\{sᵢ}}) - W(σ*_{X\{sⱼ}}) + W(σ*_{X\{sᵢ,sⱼ}})
@@ -60,7 +93,7 @@ This measures each agent's causal contribution to equilibrium welfare. However, 
 - Δ² < 0: substitutes (individually helpful but redundant together)
 - Δ² ≈ 0: independent
 
-**Solution concept comparison**: We support multiple solvers (MENE, maxent CCE, max affinity entropy) and compare the causal attributions across them. Solver sensitivity is quantified as:
+**Solution concept comparison**: We support multiple solvers (MENE, maxent CCE, max affinity entropy) and compare the causal attributions across them to distinguish solver-dependent from robust findings. Solver sensitivity is quantified as:
 
 ```
 Sens(S₁, S₂; X) = W_{S₁}(X) - W_{S₂}(X)
@@ -70,7 +103,7 @@ Sens(S₁, S₂; X) = W_{S₁}(X) - W_{S₂}(X)
 
 A central challenge is that games with multiple equilibria render Level 2 LOO effects dependent on equilibrium selection. Level 3 addresses this by performing LOO on CURB sets (Closed Under Rational Behavior, Basu & Weibull 1991), strategically self-reinforcing subsets of the strategy space where every Nash equilibrium is guaranteed to live.
 
-Rather than LOO on the full game with a single solver, Level 3 performs LOO within each CURB set. This is LOO on restricted games, where the restricted games are chosen to be strategically coherent (CURB) rather than arbitrary.
+Rather than LOO on the full game with a single solver, Level 3 performs LOO within each CURB set. This is LOO on restricted games, where the restricted games are chosen to be strategically coherent (CURB) rather than arbitrary. As with Levels 1 and 2, all CURB set computation, NE solving, and LOO evaluation are performed on the same bootstrapped payoff matrix per sample, maintaining the paired structure throughout. Answers: "is this agent's contribution robust across strategically coherent restricted games?"
 
 **Algorithm (per bootstrap sample b):**
 
@@ -250,8 +283,8 @@ Same Axelrod strategies under Hawk-Dove payoffs (anti-coordination). Different g
 | BRᵢ(σ₋ᵢ) | Best-response correspondence for player i |
 | CBR(C) | Conditional best response set of C |
 | ρᵢᴳ(σ) | Regret of player i at profile σ |
-| Φ | Metric functional (UW, NW, EF1, etc.) |
-| W_S(X) | Welfare at equilibrium: Φ(Ĝ_{S↓X}, S(Ĝ_{S↓X})) |
+| M̂_k | Estimated matrix for metric k (e.g., UW, NW, coop, EF1) |
+| W_{S,k}(X) | Welfare at equilibrium: σ*_Xᵀ M̂_k[X,X] σ*_X where σ*_X = S(Ĝ_{S↓X}) |
 
 ---
 
