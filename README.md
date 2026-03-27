@@ -298,8 +298,8 @@ Same Axelrod strategies under Hawk-Dove payoffs (anti-coordination). Different g
 - Xu et al. (2024). "EMAI: Explainable Multi-Agent Importance." *arXiv:2412.15619*.
 - Jiang & Steinert-Threlkeld (2023). "Weighted Mobius Score." *arXiv:2305.09204*.
 - Weinberg (2025). "MACIE: Multi-Agent Causal Intelligence Explainer." *SSRN*.
-- Smithline, Mascioli, Chakraborty & Wellman (2025). "Measuring Competition and Cooperation in LLM Bargaining."
-- Li & Wellman (2024). "Meta-Game Evaluation of Agents." *IJCAI*.
+- Smithline, Mascioli, Chakraborty & Wellman (2025). "Measuring Competition and Cooperation in LLM Bargaining: An Empirical Meta-Game Analysis."
+- Li & Wellman (2024). "A meta-game evaluation framework for deep multiagent reinforcement learning." *IJCAI*.
 - Hurkens (1995). "Learning by Forgetful Players." *GEB* 11.
 - Young (1993). "The Evolution of Conventions." *Econometrica* 61.
 
