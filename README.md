@@ -4,9 +4,9 @@
 
 The number of AI agents deployed in shared environments is growing. As these populations grow and agents increasingly interact strategically, understanding the impact of each agent on the broader dynamics, not just its individual performance, becomes a way to evaluate and manage them.
 
-Metagame analysis puts everything into a strategic context: an equilibrium. Standard metagame analysis treats an equilibrium as given and evaluates agents within it: how does each agent perform at equilibrium? We additionally treat the equilibrium as something agents collectively produce: what does each agent's presence contribute to the equilibrium being what it is?
+From a designer's perspective: if you control which strategies are available to players, each strategy made available changes the game. Each strategy made available changes the game, which changes the equilibrium, which changes the outcome for everyone. Standard metagame analysis evaluates how each strategy performs at equilibrium. We measure the impact of making each strategy available, asking not "how good is this strategy?" but "what is the impact of making this strategy available on the equilibrium outcome?"
 
-Standard analysis decomposes welfare linearly: each agent's share is `σ*ᵢ (M σ*)ᵢ`. But equilibrium is a nonlinear function of the strategy set, so an agent's effect on the equilibrium is generally not always predictable from its performance within it. This can reveal structural roles invisible to standard analysis: which agents are holding the current equilibrium in place, which would shift it to a qualitatively different one, and which are substitutable.
+A strategy can be individually strong but making it available leads to a worse equilibrium for the system. Conversely, a strategy that is never played at equilibrium can still shape which equilibrium forms by its presence in the strategy set. Equilibrium is a nonlinear function of the strategy set, so the impact of including a strategy is generally not predictable from its performance within the equilibrium. This can reveal structural roles invisible to standard analysis: which strategies are holding the current equilibrium in place, which would shift it to a qualitatively different one, and which are substitutable.
 
 ### Worked Example (Bargaining Domain, Average Game)
 
