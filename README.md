@@ -1,12 +1,12 @@
-# Causal EGTA: Counterfactual Analysis in Empirical Metagames
+# Counterfactual Analysis in Empirical Metagames
 
 ## Motivation
 
 The number of AI agents deployed in shared environments is growing. As these populations grow and agents increasingly interact strategically, understanding the impact of each agent on the broader dynamics, not just its individual performance, becomes a way to evaluate and manage them.
 
-Metagame analysis puts everything in strategic context: the equilibrium. Standard metagame analysis treats the equilibrium as given and evaluates agents within it: how does each agent perform at equilibrium? We additionally treat the equilibrium as something agents collectively produce: what does each agent's presence contribute to the equilibrium being what it is?
+Metagame analysis puts everything into a strategic context: an equilibrium. Standard metagame analysis treats an equilibrium as given and evaluates agents within it: how does each agent perform at equilibrium? We additionally treat the equilibrium as something agents collectively produce: what does each agent's presence contribute to the equilibrium being what it is?
 
-Standard analysis decomposes welfare linearly: each agent's share is `σ*ᵢ (M σ*)ᵢ`. But equilibrium is a nonlinear function of the strategy set, so an agent's effect on the equilibrium is generally not predictable from its performance within it. This can reveal structural roles invisible to standard analysis: which agents are holding the current equilibrium in place, which would shift it to a qualitatively different one, and which are substitutable.
+Standard analysis decomposes welfare linearly: each agent's share is `σ*ᵢ (M σ*)ᵢ`. But equilibrium is a nonlinear function of the strategy set, so an agent's effect on the equilibrium is generally not always predictable from its performance within it. This can reveal structural roles invisible to standard analysis: which agents are holding the current equilibrium in place, which would shift it to a qualitatively different one, and which are substitutable.
 
 ### Worked Example (Bargaining Domain, Average Game)
 
@@ -44,7 +44,7 @@ Although 5.2_low has zero support in the full-game equilibrium, it has the large
 
 This shift is motivated by a fundamental property of Nash equilibrium under strategy removal. The Nash equilibrium correspondence satisfies independence of irrelevant strategies (IIS) (Peleg & Tijs, 1996; Ray, 2000) in the contraction direction: removing a strategy outside the equilibrium support preserves existing equilibria, as it only eliminates potential deviations. However, IIS only guarantees preservation of existing equilibria, not the absence of new ones: removing a strategy can create new equilibria by eliminating a profitable deviation that was previously destabilizing other profiles. Furthermore, equilibrium selection is not preserved: the equilibrium chosen by a given solver can change because the selection landscape shifts when a strategy is removed. This means that adding or removing a strategy from the metagame, even one with zero equilibrium weight, can change both which equilibria exist and which one is selected.
 
-Equilibrium selection is a well-studied open problem in game theory, and we make no claims of solving it here. Rather, we propose an add-on to metagame evaluation that accounts for multiple restricted games, multiple equilibria, and the causal role of individual agents across these settings. By examining how welfare and cooperation change as agents are added or removed from the strategy set, and by examining outcomes across strategically stable subsets (CURB sets), we provide evaluations that are informed by the structure of the equilibrium landscape rather than dependent on a single selection.
+Equilibrium selection is a well-studied open problem in game theory. We propose an add-on to metagame evaluation that accounts for multiple restricted games, multiple equilibria, and the counterfactual role of individual agents across these settings. By examining how welfare and cooperation change as agents are added or removed from the strategy set, and by examining outcomes across strategically stable subsets (CURB sets), we provide evaluations that are informed by the structure of the equilibrium landscape rather than dependent on a single selection.
 
 ### Connection to Agent Importance in MARL
 
@@ -52,7 +52,7 @@ Recent work on explainable multi-agent importance (EMAI, Xu et al. 2024) measure
 
 ### Connection to Equilibrium-Based Rating Methods
 
-Recent work on equilibrium-based evaluation includes clone-invariant deviation ratings (Marris et al. 2025), which rate strategies robustly under CCE, and within-equilibrium marginal decompositions (Liu et al. 2025), which attribute ratings to co-player contributions at a fixed equilibrium. Both operate within a single equilibrium and focus on competitive rating. Our approach is complementary: we perform interventional counterfactual analysis (strategy removal with re-equilibration) across multiple equilibria (via CURB sets), measuring causal contributions to welfare and cooperation rather than competitive rankings. This captures effects that within-equilibrium methods cannot detect, such as agents outside the equilibrium support that reshape which equilibrium exists.
+Recent work on equilibrium-based evaluation includes clone-invariant deviation ratings (Marris et al. 2025), which rate strategies robustly under CCE, and within-equilibrium marginal decompositions (Liu et al. 2025), which attribute ratings to co-player contributions at a fixed equilibrium. Both operate within a single equilibrium and focus on competitive rating. Our approach is complementary: we perform interventional counterfactual analysis (strategy removal with re-equilibration) across multiple equilibria (via CURB sets), measuring counterfactual contributions to welfare and cooperation rather than competitive rankings. This captures effects that within-equilibrium methods cannot detect, such as agents outside the equilibrium support that reshape which equilibrium exists.
 
 ---
 
@@ -81,7 +81,7 @@ For each bootstrap sample, remove agent sᵢ from the same bootstrapped game, re
 d_b = W(full, b) - W(LOO_i, b)
 ```
 
-This measures each agent's causal contribution to equilibrium welfare. However, results are solver-dependent: different solution concepts can identify different agents as important. Answers: "which agents causally drive the equilibrium?"
+This measures each agent's counterfactual contribution to equilibrium welfare. However, results are solver-dependent: different solution concepts can identify different agents as important. Answers: "which agents counterfactually drive the equilibrium?"
 
 **Harsanyi Interaction Dividends** extend LOO to pairwise interactions, computed on the same bootstrap sample (full, LOO, and LTO all from one resample):
 
@@ -93,7 +93,7 @@ This measures each agent's causal contribution to equilibrium welfare. However, 
 - Δ² < 0: substitutes (individually helpful but redundant together)
 - Δ² ≈ 0: independent
 
-**Solution concept comparison**: We support multiple solvers (MENE, maxent CCE, max affinity entropy) and compare the causal attributions across them to distinguish solver-dependent from robust findings. Solver sensitivity is quantified as:
+**Solution concept comparison**: We support multiple solvers (MENE, maxent CCE, max affinity entropy) and compare the counterfactual attributions across them to distinguish solver-dependent from robust findings. Solver sensitivity is quantified as:
 
 ```
 Sens(S₁, S₂; X) = W_{S₁}(X) - W_{S₂}(X)
@@ -152,19 +152,12 @@ max_Δ^(b)(sᵢ) = max_{C : sᵢ ∈ C, |C| ≥ 2} Δ(sᵢ | C, b)
 | CI upper of max_Δ < 0 | Robustly harmful: agent hurts welfare in every CURB set it belongs to |
 | min_Δ < 0 < max_Δ | CURB-set-dependent: effect varies across strategically coherent restricted games |
 
-**Why Level 3 is more principled than Level 2:**
-
-- Level 2 uses one solver on the full game. The LOO effect depends on which equilibrium the solver picks (IIA violation).
-- Level 3 performs LOO across multiple strategically coherent restricted games (CURB sets) and reports the range of effects.
-- Level 2 can declare an agent "significantly helpful" when it is only helpful in one CURB set (the one the solver happened to pick).
-- Level 3 reveals whether the effect is robust across CURB sets or varies across them.
-- The full game is always a CURB set, so the Level 2 full-game LOO is one entry in the Level 3 interval. Level 3 strictly generalizes Level 2.
 
 ---
 
-## Additional Analysis Tools
+## Additional Analysis Tools 
 
-### Synergy Index (Emergence Detection)
+### Synergy Index (Emergence Detection) I'm not gonna use these, just ideas for new metrics
 
 The Synergy Index (cf. MACIE, Weinberg 2025) measures whether the multi-agent system exhibits emergence:
 
@@ -174,7 +167,7 @@ SI = (W(X) - Σᵢ W({sᵢ})) / max(W(X), Σᵢ W({sᵢ}))
 
 Where W({sᵢ}) is agent sᵢ's self-play payoff. SI > 0 indicates positive emergence (strategic diversity creates value), SI < 0 indicates interference.
 
-### CURB-Level Interaction Effects
+### CURB-Level Interaction Effects 
 
 Interaction effects between a CURB set and the rest of the game:
 
@@ -184,9 +177,6 @@ Interaction effects between a CURB set and the rest of the game:
 
 This addresses the problem of wide individual LOO CIs for interchangeable agents. Removing the entire CURB set (group-level LOO) produces a clean, significant effect where individual LOO cannot distinguish within the group.
 
-### On Direct/Indirect Effect Decomposition
-
-In causal mediation analysis (cf. Weighted Mobius Score, Jiang & Steinert-Threlkeld 2023), total effects can be decomposed into direct and indirect effects. However, in a strategic context this decomposition is not cleanly defined: there is no principled way to "hold the equilibrium fixed" while removing a strategy, since the equilibrium is itself a function of the strategy set. For out-of-support agents the entire LOO effect is indirect, while for in-support agents the two effects are entangled. We therefore report total LOO effects and use structural analysis (CURB set stability, best-response graph changes) to explain the mechanism behind each effect.
 
 ---
 
@@ -225,7 +215,6 @@ If feasible, then πᵢ ∈ CBR(C).
 |--------|-------------|
 | MENE | Maximum Entropy Nash Equilibrium: unique NE maximizing Shannon entropy |
 | Maxent CCE | Maximum Entropy Coarse Correlated Equilibrium: unique CCE maximizing entropy over the CE polytope (via Polarix) |
-| Max Affinity Entropy | Nash equilibrium with affinity entropy regularization (via Polarix). Uses a similarity kernel to weight entropy by strategic diversity. |
 
 ---
 
@@ -259,11 +248,11 @@ RL agents (PPO, PSRO, MAPPO) and LLM agents (OpenAI o1 variants) negotiate over 
 
 ### 2. Iterated Prisoner's Dilemma
 
-Strategies from the [Axelrod Python library](https://github.com/Axelrod-project/Axelrod) play repeated PD with noise. Noise differentiates robust vs fragile cooperators and creates non-trivial equilibrium structure.
+Strategies from the [Axelrod Python library](https://github.com/Axelrod-project/Axelrod) play repeated PD.
 
 ### 3. Iterated Hawk-Dove
 
-Same Axelrod strategies under Hawk-Dove payoffs (anti-coordination). Different game structure reveals different causal patterns across domains.
+Same Axelrod strategies under Hawk-Dove payoffs (anti-coordination). Different game structure reveals different counterfactual patterns across domains.
 
 ---
 
