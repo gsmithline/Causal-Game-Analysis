@@ -79,7 +79,7 @@ from evaluation.original_paper_analysis import (
 METRIC_NAMES = ["uw", "nw", "nw_plus", "ef1", "ef1_plus"]
 
 
-def _solve_maxent_cce(eq_matrix, subset, max_iterations=200_000, gap_threshold=1e-4):
+def _solve_maxent_cce(eq_matrix, subset, max_iterations=1_000_000, gap_threshold=1e-2):
     """Solve maxent CCE using Polarix. Returns sigma or None if not converged.
 
     Returns None when ce_gap > gap_threshold, allowing callers to skip
@@ -1004,6 +1004,7 @@ def main():
         strategy_names = [
             "walk", "tough", "nfsp", "mappo", "soft", "ppo", "psro",
             "ef1_bargainer", "openai_5.2_none", "openai_5.2_low", "openai_5.4_low",
+            "openai_5.4_medium", "openai_5.2_medium"
         ]
 
     print(f"Strategies ({len(strategy_names)}): {strategy_names}")
@@ -1057,7 +1058,7 @@ def main():
 
     # Save everything
     out_path = Path(args.output) if args.output else (
-        Path(__file__).parent.parent / "data" / "analysis" / "interaction_effects.json"
+        Path(__file__).parent.parent / "data" / "analysis" / f"interaction_effects_mecce_1000.json"
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

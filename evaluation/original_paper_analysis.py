@@ -28,20 +28,19 @@ import json
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.iterative_game_analysis.metagame import MetaGame
 from src.iterative_game_analysis.utils import compute_regret
+import polarix as plx
+import jax.numpy as jnp
+HAS_POLARIX = True
+import numpy as np
+from itertools import product
+import math
+import jax
+from functools import partial
 
-# Optional: Polarix for maxent CCE solver
-try:
-    import polarix as plx
-    import jax.numpy as jnp
-    HAS_POLARIX = True
-except ImportError:
-    HAS_POLARIX = False
 
 
 def _solve_maxent_cce(eq_matrix, subset, max_iterations=1_000_000, gap_threshold=1e-4):
     """Solve maxent CCE using Polarix. Returns sigma or None if not converged."""
-    if not HAS_POLARIX:
-        raise ImportError("Polarix is required for maxent_cce solver. pip install polarix")
     game = plx.Game(
         payoffs=jnp.stack([jnp.array(eq_matrix), jnp.array(eq_matrix.T)]),
         actions=(np.array(subset), np.array(subset)),
@@ -54,9 +53,22 @@ def _solve_maxent_cce(eq_matrix, subset, max_iterations=1_000_000, gap_threshold
         return None
     sigma = np.array(plx.marginals_from_joint(ce.joint)[0])
     return sigma
-import numpy as np
-from itertools import product
-import math
+
+def _solve_maxent_affinity(eq_matrix, subset, max_iterations=1_000_000, gap_threshold=1e-4, kernel_variance=100):
+    game = plx.Game(
+        payoffs=jnp.stack([jnp.array(eq_matrix), jnp.array(eq_matrix.T)]),
+        actions=(np.array(subset), np.array(subset)),
+        players=('row', 'column'),
+        symmetry_groups=(0, 0),
+    )
+
+    key = jax.random.PRNGKey(42)
+    kernel_fn = plx.affinity_kernel(key, kernel_variance=kernel_variance) #affinity kernel
+    solver = partial(plx.max_affinity_entropy_marginals, kernel_fn=kernel_fn, )
+    result = plx.solve(game, solver, max_num_iterations=max_iterations)
+    sigma = np.array(result.marginals[0])
+    return sigma
+
 
 
 def load_json(path):
@@ -515,6 +527,12 @@ def run_bootstrap_analysis(
             if sigma is None:
                 n_skipped += 1
                 continue
+        elif solver == "maxaffent_ne":
+            eq_matrix = (eq_matrix + eq_matrix.T) / 2  # symmetric game
+            sigma = _solve_maxent_affinity(eq_matrix=eq_matrix)
+            if sigma is None:
+                n_skipped += 1
+                continue
         else:
             metagame = MetaGame(
                 policies=strategy_names,
@@ -738,7 +756,9 @@ if __name__ == "__main__":
     if matrix_path.exists():
         strategy_names = load_json(matrix_path)["strategy_names"]
     else:
-        strategy_names = ["walk", "tough", "nfsp", "mappo", "soft", "ppo", "psro", "ef1_bargainer", "openai_5.2_none", "openai_5.2_low", "openai_5.4_low"]
+        strategy_names = ["walk", "tough", "nfsp", "mappo", "soft", "ppo", "psro", "ef1_bargainer", 
+                          "openai_5.2_none", "openai_5.2_low", "openai_5.4_low",
+                          "openai_5.4_medium", "openai_5.2_medium" ]
 
     results = run_bootstrap_analysis(
         crossplay_dir=crossplay_dir,

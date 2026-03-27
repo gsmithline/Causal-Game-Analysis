@@ -433,6 +433,345 @@ def find_minimal_curb_sets_via_closure(payoff_matrix, n_strategies):
     return minimals
 
 
+def _lp_check_one(args):
+    """Check if strategy h is a BR to some mixture over S. Top-level for parallelism."""
+    h, payoff_matrix, S = args
+    n = payoff_matrix.shape[0]
+    m = len(S)
+    c_lp = np.zeros(m)
+    all_k = [k for k in range(n) if k != h]
+    A_ub = payoff_matrix[all_k][:, S] - payoff_matrix[h, S][np.newaxis, :]
+    b_ub = np.zeros(len(all_k))
+    A_eq = np.ones((1, m))
+    b_eq = np.array([1.0])
+    bounds = [(0.0, None)] * m
+    result = linprog(c_lp, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq,
+                     bounds=bounds, method="highs")
+    return (h, result.success)
+
+
+def _expand_one_wcurb(args):
+    """Expand a single wCURB candidate to its closure. Picklable top-level function."""
+    start_T, pure_br, n = args
+
+    def reachable_from_profile(i, j):
+        visited = set()
+        stack = [(i, j)]
+        while stack:
+            a, b = stack.pop()
+            if (a, b) in visited:
+                continue
+            visited.add((a, b))
+            br_b = pure_br[b]
+            if (br_b, b) not in visited:
+                stack.append((br_b, b))
+            br_a = pure_br[a]
+            if (a, br_a) not in visited:
+                stack.append((a, br_a))
+        return visited
+
+    C_s = set(start_T)
+    converged = False
+    while not converged:
+        converged = True
+        for t_i in range(n):
+            for t_j in range(n):
+                if t_i in C_s and t_j in C_s:
+                    reachable = reachable_from_profile(t_i, t_j)
+                    T1 = set(a for a, b in reachable)
+                    T2 = set(b for a, b in reachable)
+                    T_t = T1 | T2
+                    if not T_t.issubset(C_s):
+                        C_s = C_s | T_t
+                        converged = False
+    return frozenset(C_s)
+
+
+def find_minimal_curb_sets_klimm_weibull(payoff_matrix, n_strategies, parallel=False,
+                                          max_workers=None):
+    """Find all minimal CURB sets using Klimm & Weibull (2009) algorithm.
+
+    Faithful implementation of Algorithms 1 and 2 from:
+      Klimm & Weibull, "Finding all minimal CURB sets", 2009.
+
+    Algorithm 1: Find all minimal wCURB configurations via the pure
+      best-reply graph on strategy profiles.
+      - For each profile s, compute P(s) = reachable profiles via BR graph
+      - Compute T(s) = minimal product set containing P(s)
+      - Iteratively expand: for each t in C_s, if T(t) not in C_s, expand
+      - Collect minimal results into family C
+
+    Algorithm 2: Promote wCURB candidates to sCURB (= CURB for 2-player)
+      via LP feasibility checks on the strong stability sets.
+      - Maintains family T of candidates (sub-complete w.r.t. sCURB)
+      - Picks size-minimal T, checks all h outside T via LP
+      - If violator found: adds h to T AND updates all T' in family
+      - If no violator: T is confirmed sCURB, removed from family
+
+    For two-player games, CURB = sCURB (Remark 1 in paper).
+
+    Args:
+        payoff_matrix: (n, n) symmetric game payoff matrix.
+        n_strategies: Number of strategies.
+        parallel: If True, parallelize expansion and LP checks.
+        max_workers: Number of workers for parallel mode.
+
+    Returns:
+        List of frozensets, each a minimal CURB set.
+    """
+    n = n_strategies
+    if max_workers is None:
+        import multiprocessing as _mp
+        max_workers = _mp.cpu_count()
+
+    # ── Algorithm 1: Find all minimal wCURB configurations ──
+    # Step 1a: Build best-reply graph and compute P(s) for all profiles
+    pure_br = np.argmax(payoff_matrix, axis=0)  # pure_br[j] = BR to j
+
+    def reachable_from_profile(i, j):
+        """Compute P(s) = profiles reachable from (i,j) via BR graph."""
+        visited = set()
+        stack = [(i, j)]
+        while stack:
+            a, b = stack.pop()
+            if (a, b) in visited:
+                continue
+            visited.add((a, b))
+            # Player 1 deviates: BR to b
+            br_b = pure_br[b]
+            if (br_b, b) not in visited:
+                stack.append((br_b, b))
+            # Player 2 deviates: BR to a
+            br_a = pure_br[a]
+            if (a, br_a) not in visited:
+                stack.append((a, br_a))
+        return visited
+
+    def compute_T(reachable):
+        """Compute T(s) = minimal product set containing P(s).
+        For symmetric 2-player: T = T1 union T2 (projections)."""
+        T1 = frozenset(a for a, b in reachable)
+        T2 = frozenset(b for a, b in reachable)
+        return T1 | T2
+
+    # Precompute T(s) for all profiles s = (i, j)
+    # Paper: "foreach s in S do T(s) := x_{i in N} union_{t in P(s)} supp(t)"
+    T_of_profile = {}
+    profile_bar = tqdm(total=n * n, desc="Alg 1: Profile reachability", unit="profile")
+    for s_i in range(n):
+        for s_j in range(n):
+            reachable = reachable_from_profile(s_i, s_j)
+            T_of_profile[(s_i, s_j)] = frozenset(compute_T(reachable))
+            profile_bar.update(1)
+    profile_bar.close()
+
+    unique_Ts = set(T_of_profile.values())
+    print(f"  Unique T(s) values: {len(unique_Ts)}")
+
+    # Paper Algorithm 1 lines 4-22: foreach s in S, expand C_s and collect minimals
+    # The paper iterates over all profiles s in S (= all (i,j) pairs)
+    # C_s starts as T(s), then expands by checking T(t) for all t in C_s
+    family_C = []  # the output family of minimal wCURB configurations
+    found_set = set()
+
+    all_profiles = [(i, j) for i in range(n) for j in range(n)]
+
+    if parallel:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        # Deduplicate: only expand unique T(s) values
+        sorted_Ts = sorted(unique_Ts, key=len)
+
+        expanded_cache = {}
+        minimal_wcurbs = []
+        found = set()
+
+        pbar = tqdm(total=len(sorted_Ts),
+                    desc="Alg 1: Expand wCURB candidates (parallel)")
+        chunk_size = max(max_workers * 4, 1)
+        idx = 0
+        while idx < len(sorted_Ts):
+            chunk = []
+            while idx < len(sorted_Ts) and len(chunk) < chunk_size:
+                c = sorted_Ts[idx]
+                idx += 1
+                # Early pruning: skip supersets of known minimals
+                if any(m.issubset(c) for m in found):
+                    pbar.update(1)
+                    continue
+                chunk.append(c)
+
+            if not chunk:
+                continue
+
+            args_list = [(c, pure_br, n) for c in chunk]
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {executor.submit(_expand_one_wcurb, a): a_idx
+                           for a_idx, a in enumerate(args_list)}
+                for future in as_completed(futures):
+                    C_frozen = future.result()
+                    pbar.update(1)
+                    if C_frozen in found:
+                        continue
+
+                    # Minimality check (Algorithm 1 lines 16-21)
+                    is_minimal = True
+                    to_remove = []
+                    for existing in minimal_wcurbs:
+                        if existing < C_frozen:
+                            is_minimal = False
+                            break
+                        if C_frozen < existing:
+                            to_remove.append(existing)
+                    if is_minimal:
+                        for r in to_remove:
+                            minimal_wcurbs.remove(r)
+                            found.discard(r)
+                        minimal_wcurbs.append(C_frozen)
+                        found.add(C_frozen)
+                        print(f"\n    Found minimal wCURB, size={len(C_frozen)}")
+        pbar.close()
+    else:
+        # Sequential: follows paper Algorithm 1 directly
+        minimal_wcurbs = []
+        found = set()
+
+        sorted_Ts = sorted(unique_Ts, key=len)
+        for start_T in tqdm(sorted_Ts, desc="Alg 1: Expand wCURB candidates"):
+            # Early pruning
+            if any(m.issubset(start_T) for m in found):
+                continue
+
+            # Lines 5-15: expand C_s until converged
+            C_s = set(start_T)
+            converged = False
+            while not converged:
+                converged = True
+                # "foreach t in C_s": iterate over profiles in C_s x C_s
+                for t_i in range(n):
+                    for t_j in range(n):
+                        if t_i in C_s and t_j in C_s:
+                            T_t = T_of_profile.get((t_i, t_j), frozenset())
+                            # Line 10: if T(t) not subset of C_s, expand
+                            if not T_t.issubset(C_s):
+                                C_s = C_s | T_t
+                                converged = False
+
+            C_frozen = frozenset(C_s)
+
+            # Lines 16-21: minimality check and family update
+            is_minimal = True
+            to_remove = []
+            for existing in minimal_wcurbs:
+                if existing < C_frozen:
+                    is_minimal = False
+                    break
+                if C_frozen < existing:
+                    to_remove.append(existing)
+            if is_minimal:
+                for r in to_remove:
+                    minimal_wcurbs.remove(r)
+                    found.discard(r)
+                if C_frozen not in found:
+                    minimal_wcurbs.append(C_frozen)
+                    found.add(C_frozen)
+
+    print(f"  Minimal wCURB sets: {len(minimal_wcurbs)}")
+    for i, m in enumerate(minimal_wcurbs):
+        print(f"    wCURB {i}: size={len(m)}")
+
+    # ── Algorithm 2: Promote wCURB to sCURB via LP (= CURB for 2-player) ──
+    # Paper: maintains family T sub-complete w.r.t. sCURB sets.
+    # Picks size-minimal T in T, checks LP for all h outside T.
+    # If violator found: add h to T, update all T' in T, restart.
+    # If no violator: T confirmed, remove from T, add to C.
+    print(f"  Alg 2: LP verification{'  (parallel)' if parallel else ''}...")
+
+    # Initialize family T with minimal wCURBs
+    family_T = [set(m) for m in minimal_wcurbs]
+    confirmed_curb = []
+    lp_checks = 0
+    round_num = 0
+
+    while family_T:
+        # Line 2: Choose size-minimal T in T
+        family_T.sort(key=len)
+        T_set = family_T[0]
+        round_num += 1
+
+        # Lines 3-9: Check all h outside T via LP
+        outside = [h for h in range(n) if h not in T_set]
+        violator = None
+
+        if parallel:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            args_list = [(h, payoff_matrix, sorted(T_set)) for h in outside]
+
+            pbar = tqdm(total=len(outside),
+                        desc=f"  Alg 2 round {round_num} (|T|={len(T_set)}, "
+                             f"checking {len(outside)}, family={len(family_T)})")
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {executor.submit(_lp_check_one, a): a[0] for a in args_list}
+                for future in as_completed(futures):
+                    h, feasible = future.result()
+                    lp_checks += 1
+                    pbar.update(1)
+                    if feasible and violator is None:
+                        violator = h
+                        for f in futures:
+                            f.cancel()
+                        break
+            pbar.close()
+        else:
+            for h in tqdm(outside,
+                          desc=f"  Alg 2 round {round_num} (|T|={len(T_set)}, "
+                               f"checking {len(outside)}, family={len(family_T)})"):
+                S = sorted(T_set)
+                m = len(S)
+                c_lp = np.zeros(m)
+                all_k = [k for k in range(n) if k != h]
+                A_ub = payoff_matrix[all_k][:, S] - payoff_matrix[h, S][np.newaxis, :]
+                b_ub = np.zeros(len(all_k))
+                A_eq = np.ones((1, m))
+                b_eq = np.array([1.0])
+                bounds = [(0.0, None)] * m
+                result = linprog(c_lp, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq,
+                                 bounds=bounds, method="highs")
+                lp_checks += 1
+                if result.success:
+                    violator = h
+                    break
+
+        if violator is not None:
+            # Lines 6-7: Violator found. Update T and all T' in family.
+            # Paper: "Update all T in T" = add violator to all candidates
+            # that need it (i.e., don't already contain it)
+            print(f"    ✗ Violator: strategy {violator}, updating family")
+            for T_prime in family_T:
+                T_prime.add(violator)
+            # Goto line 2 (restart with updated family)
+        else:
+            # Lines 11-13: T is confirmed sCURB.
+            T_frozen = frozenset(T_set)
+            confirmed_curb.append(T_frozen)
+            family_T.pop(0)  # Remove T from family
+            print(f"    ✓ Confirmed CURB set, size={len(T_frozen)}")
+
+            # Line 13: "Update all T in T" = remove confirmed and
+            # any T' that is a superset of confirmed
+            family_T = [T_prime for T_prime in family_T
+                        if not T_frozen.issubset(T_prime)]
+
+    # Filter to minimal among confirmed
+    curb_sets = []
+    for C in confirmed_curb:
+        if not any(C2 < C for C2 in confirmed_curb):
+            curb_sets.append(C)
+
+    print(f"  LP checks: {lp_checks}, confirmed minimal CURB sets: {len(curb_sets)}")
+    return curb_sets
+
+
 def find_all_curb_sets_via_closure(payoff_matrix, n_strategies):
     """Find all CURB sets using closure-derived minimals to prune search.
 
