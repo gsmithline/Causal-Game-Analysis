@@ -4,7 +4,7 @@
 
 The number of AI agents deployed in shared environments is growing. As these populations grow and agents increasingly interact strategically, understanding the impact of each agent on the broader dynamics, not just its individual performance, becomes a way to evaluate and manage them.
 
-Metagame analysis puts everything in strategic context: the equilibrium. Standard metagame analysis treats the equilibrium as given and evaluates agents within it: *how does each agent perform at equilibrium?* We additionally treat the equilibrium as something agents collectively produce: *what does each agent's presence contribute to the equilibrium being what it is?*
+Metagame analysis puts everything in strategic context: the equilibrium. Standard metagame analysis treats the equilibrium as given and evaluates agents within it: how does each agent perform at equilibrium? We additionally treat the equilibrium as something agents collectively produce: what does each agent's presence contribute to the equilibrium being what it is?
 
 Standard analysis decomposes welfare linearly: each agent's share is `σ*ᵢ (M σ*)ᵢ`. But equilibrium is a nonlinear function of the strategy set, so an agent's effect on the equilibrium is generally not predictable from its performance within it. This can reveal structural roles invisible to standard analysis: which agents are holding the current equilibrium in place, which would shift it to a qualitatively different one, and which are substitutable.
 
@@ -14,7 +14,7 @@ The MENE equilibrium of the average game is 79% PPO and 21% PSRO. All other agen
 
 **Removing 5.2_low** (0% support, rank 1 in individual welfare):
 - Equilibrium shifts: 79% PPO / 21% PSRO → 68% PPO / 30% 5.4_medium / 2% PSRO
-- Welfare *improves* across all metrics: UW +10.87, NW +7.60, NW+ +4.41, EF1 +4.2%, EF1+ +7.7%
+- Welfare improves across all metrics: UW +10.87, NW +7.60, NW+ +4.41, EF1 +4.2%, EF1+ +7.7%
 - The magnitude of impact is larger than removing PPO, the 79% agent
 - 5.2_low is never played, but its presence as the best response to 5.4_medium prevents 5.4_medium from entering the equilibrium
 
@@ -42,7 +42,7 @@ Although 5.2_low has zero support in the full-game equilibrium, it has the large
 
 ### Independence of Irrelevant Strategies
 
-This shift is motivated by a fundamental property of Nash equilibrium under strategy removal. The Nash equilibrium correspondence satisfies independence of irrelevant strategies (IIS) (Peleg & Tijs, 1996; Ray, 2000) in the contraction direction: removing a strategy outside the equilibrium support preserves existing equilibria, as it only eliminates potential deviations. However, IIS only guarantees preservation of existing equilibria, not the absence of new ones: removing a strategy can *create* new equilibria by eliminating a profitable deviation that was previously destabilizing other profiles. Furthermore, equilibrium *selection* is not preserved: the equilibrium chosen by a given solver can change because the selection landscape shifts when a strategy is removed. This means that adding or removing a strategy from the metagame, even one with zero equilibrium weight, can change both which equilibria exist and which one is selected.
+This shift is motivated by a fundamental property of Nash equilibrium under strategy removal. The Nash equilibrium correspondence satisfies independence of irrelevant strategies (IIS) (Peleg & Tijs, 1996; Ray, 2000) in the contraction direction: removing a strategy outside the equilibrium support preserves existing equilibria, as it only eliminates potential deviations. However, IIS only guarantees preservation of existing equilibria, not the absence of new ones: removing a strategy can create new equilibria by eliminating a profitable deviation that was previously destabilizing other profiles. Furthermore, equilibrium selection is not preserved: the equilibrium chosen by a given solver can change because the selection landscape shifts when a strategy is removed. This means that adding or removing a strategy from the metagame, even one with zero equilibrium weight, can change both which equilibria exist and which one is selected.
 
 Equilibrium selection is a well-studied open problem in game theory, and we make no claims of solving it here. Rather, we propose an add-on to metagame evaluation that accounts for multiple restricted games, multiple equilibria, and the causal role of individual agents across these settings. By examining how welfare and cooperation change as agents are added or removed from the strategy set, and by examining outcomes across strategically stable subsets (CURB sets), we provide evaluations that are informed by the structure of the equilibrium landscape rather than dependent on a single selection.
 
