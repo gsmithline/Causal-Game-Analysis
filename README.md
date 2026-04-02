@@ -294,6 +294,10 @@ Same Axelrod strategies under Hawk-Dove payoffs (anti-coordination). Different g
 
 ---
 
+## Data
+
+The bargaining game crossplay data is available on HuggingFace: https://huggingface.co/datasets/Gsmith43/causal-game-crossplay
+
 ## Installation
 
 Requires Python 3.10+. Install using [uv](https://github.com/astral-sh/uv):
