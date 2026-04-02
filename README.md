@@ -152,6 +152,40 @@ max_Δ^(b)(sᵢ) = max_{C : sᵢ ∈ C, |C| ≥ 2} Δ(sᵢ | C, b)
 | CI upper of max_Δ < 0 | Robustly harmful: agent hurts welfare in every CURB set it belongs to |
 | min_Δ < 0 < max_Δ | CURB-set-dependent: effect varies across strategically coherent restricted games |
 
+#### CURB Coverage and the Prep Set Fallback
+
+A known limitation of CURB sets is that in some games, even the smallest minimal CURB set spans nearly the entire strategy space (Ritzberger & Weibull 1995; Balkenborg, Hofbauer & Kuzmics 2013). When this occurs, Level 3 conditioning degenerates: LOO within a CURB set that contains all strategies is equivalent to Level 2 full-game LOO, and the CURB decomposition adds no information.
+
+We quantify this with a **CURB coverage ratio**:
+
+```
+ρ(G) = |C_min| / |S|
+```
+
+where C_min is the largest minimal CURB set and S is the full strategy set. When ρ ≈ 1, Level 3 is uninformative. When ρ is small, the game admits a rich CURB decomposition and Level 3 provides genuine insight beyond Level 2.
+
+This is connected to game structure: highly cyclic games (where every strategy is a best response to some mixture) tend to have large CURB closures because the best-response graph is dense. Transitive games, where strategies are roughly linearly ordered by strength, tend to have many small CURB sets.
+
+**Prep sets as a finer alternative.** When CURB sets are too coarse, *preparation sets* (Voorneveld 2004) provide a strictly finer decomposition. A prep set is a minimal non-empty set P ⊆ S closed under *some* best response: for every mixture over P, at least one best response remains in P. CURB requires *all* best responses to stay in the set.
+
+Formally, for a generalized best reply correspondence τ ∈ T^PS (Balkenborg et al. 2013):
+
+- **τ-CURB set**: R is τ-CURB if τ(Θ(R)) ⊇ Θ(R) — closed under all τ-best replies
+- **τ-prep set**: R is τ-prep if for all x ∈ Θ(R) and all players i, τᵢ(x) ∩ Δ(Rᵢ) ≠ ∅ — at least one τ-best reply stays in R
+
+Key relationships (Balkenborg et al. 2013, Lemmas 2 & 4):
+
+1. Every τ-prep set is contained in some τ-CURB set (prep ⊆ CURB)
+2. The smaller τ is in the lattice of generalized BR correspondences, the more τ-CURB sets and the fewer τ-prep sets exist
+3. The finest decomposition uses σ (the refined BR correspondence): minimal σ-CURB sets are exactly persistent retracts (Kalai & Samet 1984), and every minimally asymptotically stable face (MASF) must be a tight σ-prep set (Theorem 4)
+
+For the purposes of counterfactual analysis:
+
+- **CURB sets** (standard β-CURB) are the default for Level 3 — they are computationally tractable via the Klimm & Weibull algorithm and guarantee all NE of the restricted game are NE of the full game
+- **Prep sets** are the fallback when CURB coverage is high — they can decompose a game that CURB cannot, at the cost of a weaker closure property (some BR rather than all)
+- The coverage ratio ρ serves as a diagnostic: report it alongside Level 3 results to indicate how informative the CURB conditioning is for a given game
+
+No new theoretical results are needed here; the lattice relationships and containment properties are established in the cited literature. Our contribution is empirical: measuring ρ across games and showing when Level 3 adds value.
 
 ---
 
