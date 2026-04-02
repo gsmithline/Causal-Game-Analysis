@@ -179,10 +179,16 @@ Key relationships (Balkenborg et al. 2013, Lemmas 2 & 4):
 2. The smaller τ is in the lattice of generalized BR correspondences, the more τ-CURB sets and the fewer τ-prep sets exist
 3. The finest decomposition uses σ (the refined BR correspondence): minimal σ-CURB sets are exactly persistent retracts (Kalai & Samet 1984), and every minimally asymptotically stable face (MASF) must be a tight σ-prep set (Theorem 4)
 
+**Equilibrium validity.** This distinction has a key operational consequence for counterfactual analysis:
+
+- **CURB set equilibria require no deviation check.** Because CURB is closed under *all* best responses, no strategy outside C can be a profitable deviation against any NE of the restricted game G[C]. Any NE of G[C] is automatically a NE of the full game G. This is why Level 3 LOO within CURB sets produces valid counterfactuals without additional verification.
+
+- **Prep set equilibria require a deviation check.** Because prep sets are only closed under *some* best response, strategies outside P may be profitable deviations against a NE of G[P]. Formally: if σ* is a NE of G[P], one must verify that for all sⱼ ∈ S \ P, u(sⱼ, σ*₋ᵢ) ≤ u(σ*ᵢ, σ*₋ᵢ) for all players i. If any outside strategy is a profitable deviation, the restricted equilibrium is not a NE of the full game, and the LOO counterfactual based on it may not be strategically meaningful.
+
 For the purposes of counterfactual analysis:
 
-- **CURB sets** (standard β-CURB) are the default for Level 3 — they are computationally tractable via the Klimm & Weibull algorithm and guarantee all NE of the restricted game are NE of the full game
-- **Prep sets** are the fallback when CURB coverage is high — they can decompose a game that CURB cannot, at the cost of a weaker closure property (some BR rather than all)
+- **CURB sets** (standard β-CURB) are the default for Level 3 — they are computationally tractable via the Klimm & Weibull algorithm and guarantee equilibrium validity without deviation checks
+- **Prep sets** are the fallback when CURB coverage is high — they can decompose a game that CURB cannot, but each restricted equilibrium must be validated against the full strategy set before computing LOO deltas
 - The coverage ratio ρ serves as a diagnostic: report it alongside Level 3 results to indicate how informative the CURB conditioning is for a given game
 
 No new theoretical results are needed here; the lattice relationships and containment properties are established in the cited literature. Our contribution is empirical: measuring ρ across games and showing when Level 3 adds value.
