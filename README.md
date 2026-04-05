@@ -32,21 +32,21 @@ Our answer: removing an agent from a restricted game does not remove it from the
 
 The MENE equilibrium of the average game is 79% PPO and 21% PSRO. All other agents have zero support. One might expect only removing these two agents would shift the equilibrium.
 
-**Removing 5.2_low** (0% support, rank 1 in individual welfare):
-- Equilibrium shifts: 79% PPO / 21% PSRO → 68% PPO / 30% 5.4_medium / 2% PSRO
-- Welfare improves across all metrics: UW +10.87, NW +7.60, NW+ +4.41, EF1 +4.2%, EF1+ +7.7%
-- The magnitude of impact is larger than removing PPO, the 79% agent
+**5.2_low** (0% support, rank 1 in individual welfare):
+- LOO effect: UW −10.87, NW −7.60, NW+ −4.41, EF1 −4.2%, EF1+ −7.7% (negative = presence hurts welfare)
+- Equilibrium shifts: 79% PPO / 21% PSRO → 68% PPO / 30% 5.4_medium / 2% PSRO without it
+- The magnitude of impact is larger than PPO, the 79% agent
 - 5.2_low is never played, but its presence as the best response to 5.4_medium prevents 5.4_medium from entering the equilibrium
 
-**Removing PPO** (79% support):
-- Equilibrium shifts: 79% PPO / 21% PSRO → 80% MAPPO / 20% PSRO
-- Near-zero welfare impact because MAPPO is a functional copy of PPO
-- The dominant agent is entirely substitutable
+**PPO** (79% support):
+- LOO effect: near-zero across all metrics (presence has negligible impact)
+- Equilibrium shifts: 79% PPO / 21% PSRO → 80% MAPPO / 20% PSRO without it
+- MAPPO is a functional copy of PPO — the dominant agent is entirely substitutable
 
-**Removing PSRO** (21% support, ranks 7th-10th across welfare/fairness metrics):
-- Equilibrium shifts: 79% PPO / 21% PSRO → 44% 5.4_medium / 32% 5.2_low / 17% 5.2_medium / 7% 5.2_none
+**PSRO** (21% support, ranks 7th-10th across welfare/fairness metrics):
+- LOO effect: UW −39.08, NW −24.44, EF1 −16.8% (largest magnitude of any agent)
+- Equilibrium shifts: 79% PPO / 21% PSRO → 44% 5.4_medium / 32% 5.2_low / 17% 5.2_medium / 7% 5.2_none without it
 - Regime change from RL-dominated to LLM-dominated equilibrium
-- Largest welfare impact of any agent: UW +39.08, NW +24.44, EF1 +16.8%
 - PSRO's presence forces a competitive equilibrium
 
 **CURB-conditional LOO** on the same game (23 CURB sets, 3 minimal singletons: {ppo}, {psro}, {mappo}):
@@ -212,31 +212,6 @@ For the purposes of counterfactual analysis:
 - The coverage ratio ρ serves as a diagnostic: report it alongside Level 3 results to indicate how informative the CURB conditioning is for a given game
 
 No new theoretical results are needed here; the lattice relationships and containment properties are established in the cited literature. Our contribution is empirical: measuring ρ across games and showing when Level 3 adds value.
-
----
-
-## Additional Analysis Tools 
-
-### Synergy Index (Emergence Detection) I'm not gonna use these, just ideas for new metrics
-
-The Synergy Index (cf. MACIE, Weinberg 2025) measures whether the multi-agent system exhibits emergence:
-
-```
-SI = (W(X) - Σᵢ W({sᵢ})) / max(W(X), Σᵢ W({sᵢ}))
-```
-
-Where W({sᵢ}) is agent sᵢ's self-play payoff. SI > 0 indicates positive emergence (strategic diversity creates value), SI < 0 indicates interference.
-
-### CURB-Level Interaction Effects 
-
-Interaction effects between a CURB set and the rest of the game:
-
-```
-Δ²W(C, X\C) = W(X) - W(C) - W(X\C) + W(∅)
-```
-
-This addresses the problem of wide individual LOO CIs for interchangeable agents. Removing the entire CURB set (group-level LOO) produces a clean, significant effect where individual LOO cannot distinguish within the group.
-
 
 ---
 
