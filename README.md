@@ -30,7 +30,7 @@ Our answer: removing an agent from a restricted game does not remove it from the
 
 ### Interpreting the results
 
-**Sign.** The LOO effect ΔW = W(full game) − W(without agent) measures the welfare difference between two equilibria. Positive means the agent's presence is associated with higher equilibrium welfare; negative means the equilibrium welfare is lower with the agent available.
+**Sign.** The LOO effect ΔW = W(full game) − W(without agent) measures the welfare difference between two equilibria. Positive means equilibrium welfare is higher with the agent present; negative means it is lower.
 
 **Magnitude.** The magnitude of ΔW is interpretable relative to the full-game equilibrium welfare, which we report alongside LOO effects. Near-zero effects indicate substitutability or irrelevance regardless of sign.
 
