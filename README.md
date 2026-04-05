@@ -28,6 +28,22 @@ Our answer: removing an agent from a restricted game does not remove it from the
 
 **Level 2 (full-game LOO)** measures each agent's externality on the full game. **Harsanyi interaction dividends** extend this to pairwise interactions: does the impact of agent A depend on whether agent B is present? **Level 3 (CURB-conditional LOO)** evaluates whether the L2 effect holds up across strategically coherent restricted games (CURB sets), or whether it is context-dependent. Together they reveal which parts of the equilibrium prediction are robust to the composition of the strategy set and which are fragile.
 
+### Interpreting the results
+
+**Sign.** The LOO effect ΔW = W(full game) − W(without agent) measures the welfare difference between two equilibria. Positive means the agent's presence is associated with higher equilibrium welfare; negative means the equilibrium welfare is lower with the agent available.
+
+**Magnitude.** The magnitude of ΔW is interpretable relative to the full-game equilibrium welfare. We report both raw deltas and percentage changes to make cross-domain comparison possible.
+
+**What this measures.** The LOO effect measures the equilibrium consequence of an agent's *availability* as a strategic option. It is a property of the game structure, not of the agent in isolation. Two different solvers may attribute different effects to the same agent because the effect depends on which equilibrium is selected — this is why Level 3 exists. The LOO decomposition is not prescriptive: it does not recommend removing agents, just as ANOVA decomposes variance into attributable factors without recommending that any factor be eliminated.
+
+**Level 3 classification.** Each CURB set represents a self-reinforcing strategic context — a subset of strategies that could sustain play on their own. When an agent's LOO effect varies across CURB sets, it means the agent's contribution to welfare genuinely depends on what alternatives are available, not that the measurement is unstable.
+
+| Condition | Label | Interpretation |
+|-----------|-------|---------------|
+| Positive across all CURB sets | Consistently welfare-improving | Agent's presence improves the equilibrium in every strategic context |
+| Negative across all CURB sets | Consistently welfare-reducing | Agent's presence worsens the equilibrium in every strategic context |
+| Sign varies across CURB sets | CURB-dependent | Agent's effect depends on which other strategies are present |
+
 ### Worked Example (Bargaining Domain, Average Game)
 
 The MENE equilibrium of the average game is 79% PPO and 21% PSRO. All other agents have zero support. One might expect only removing these two agents would shift the equilibrium.
@@ -53,10 +69,10 @@ The MENE equilibrium of the average game is 79% PPO and 21% PSRO. All other agen
 
 | Agent | n_curbs | UW [min, max] | NW [min, max] | NW+ [min, max] | EF1 [min, max] | EF1+ [min, max] | Classification |
 |-------|---------|---------------|---------------|----------------|----------------|-----------------|----------------|
-| ppo | 16 | [+6.26, +6.26] | [+4.00, +4.00] | [+2.04, +2.04] | [+0.041, +0.041] | [+0.010, +0.010] | Robustly helpful |
+| ppo | 16 | [+6.26, +6.26] | [+4.00, +4.00] | [+2.04, +2.04] | [+0.041, +0.041] | [+0.010, +0.010] | Consistently welfare-improving |
 | psro | 20 | [-45.34, +6.67] | [-28.44, +3.96] | [-13.95, +3.43] | [-0.209, +0.038] | [-0.284, +0.009] | CURB-dependent |
-| mappo | 20 | [-3.57, 0.00] | [-0.72, 0.00] | [-0.36, 0.00] | [-0.063, 0.00] | [-0.015, 0.00] | Robustly harmful |
-| 5.2_low | 20 | [-46.92, 0.00] | [-28.63, 0.00] | [-4.41, 0.00] | [-0.197, 0.00] | [-0.077, 0.00] | Robustly harmful |
+| mappo | 20 | [-3.57, 0.00] | [-0.72, 0.00] | [-0.36, 0.00] | [-0.063, 0.00] | [-0.015, 0.00] | Consistently welfare-reducing |
+| 5.2_low | 20 | [-46.92, 0.00] | [-28.63, 0.00] | [-4.41, 0.00] | [-0.197, 0.00] | [-0.077, 0.00] | Consistently welfare-reducing |
 
 Although 5.2_low has zero support in the full-game equilibrium, it has the largest worst-case CURB LOO magnitude (-46.92 UW) of any agent. PPO's effect is identical across all 16 CURB sets it appears in, completely robust. PSRO is the only agent whose effect is CURB-dependent, ranging from -45.34 to +6.67 depending on the strategic context.
 
@@ -168,8 +184,8 @@ max_Δ^(b)(sᵢ) = max_{C : sᵢ ∈ C, |C| ≥ 2} Δ(sᵢ | C, b)
 
 | Condition | Interpretation |
 |-----------|---------------|
-| CI lower of min_Δ > 0 | Robustly helpful: agent improves welfare in every CURB set it belongs to |
-| CI upper of max_Δ < 0 | Robustly harmful: agent hurts welfare in every CURB set it belongs to |
+| CI lower of min_Δ > 0 | Consistently welfare-improving: agent's presence improves the equilibrium in every CURB set it belongs to |
+| CI upper of max_Δ < 0 | Consistently welfare-reducing: agent's presence worsens the equilibrium in every CURB set it belongs to |
 | min_Δ < 0 < max_Δ | CURB-set-dependent: effect varies across strategically coherent restricted games |
 
 #### CURB Coverage and the Prep Set Fallback
