@@ -1,0 +1,3 @@
+[submodule "external/discrating"]
+	path = external/discrating
+	url = https://github.com/QB3/discrating
