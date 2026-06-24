@@ -1,0 +1,87 @@
+This is BibTeX, Version 0.99d (TeX Live 2022)
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: main.aux
+The style file: ACM-Reference-Format.bst
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated wiz_functions (elt_size=4) to 6000 items from 3000.
+Database file #1: main.bib
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Reallocated glb_str_ptr (elt_size=4) to 20 items from 10.
+Reallocated global_strs (elt_size=200001) to 20 items from 10.
+Reallocated glb_str_end (elt_size=4) to 20 items from 10.
+Reallocated singl_function (elt_size=4) to 100 items from 50.
+Warning--page numbers missing in both pages and numpages fields in Balduzzi2018ReevaluatingE
+Warning--empty address in barnett2025measuring
+Warning--page numbers missing in both pages and numpages fields in barnett2025measuring
+Warning--page numbers missing in both pages and numpages fields in Benisch2010AlgorithmsFC
+Warning--empty publisher in bertrand2023limitations
+Warning--empty address in bertrand2023limitations
+Warning--empty publisher in conitzer2023foundations
+Warning--empty address in conitzer2023foundations
+Warning--page numbers missing in both pages and numpages fields in Dafoe2020OpenPI
+Warning--page numbers missing in both pages and numpages fields in Du2023ARO
+Warning--empty publisher in foerster2018counterfactual
+Warning--empty address in foerster2018counterfactual
+Warning--empty booktitle in Klimm2009FindingAM
+Warning--empty publisher in Klimm2009FindingAM
+Warning--empty address in Klimm2009FindingAM
+Warning--page numbers missing in both pages and numpages fields in Klimm2009FindingAM
+Warning--empty publisher in leibo2017multiagent
+Warning--empty address in leibo2017multiagent
+Warning--empty publisher in Li2024AME
+Warning--empty address in Li2024AME
+Warning--page numbers missing in both pages and numpages fields in Li2024AME
+Warning--empty publisher in liu2025reevaluating
+Warning--empty address in liu2025reevaluating
+Warning--page numbers missing in both pages and numpages fields in liu2025reevaluating
+Warning--empty publisher in Luo2026
+Warning--empty address in Luo2026
+Warning--page numbers missing in both pages and numpages fields in Luo2026
+Warning--no number and no volume in marris2025deviation
+Warning--page numbers missing in both pages and numpages fields in marris2025deviation
+Warning--empty publisher in smithline2025measuring
+Warning--empty address in smithline2025measuring
+Warning--page numbers missing in both pages and numpages fields in smithline2025measuring
+You've used 22 entries,
+            5945 wiz_defined-function locations,
+            1476 strings with 19478 characters,
+and the built_in function-call counts, 27391 in all, are:
+= -- 3485
+> -- 1111
+< -- 0
++ -- 372
+- -- 364
+* -- 2044
+:= -- 2739
+add.period$ -- 107
+call.type$ -- 22
+change.case$ -- 170
+chr.to.int$ -- 22
+cite$ -- 54
+duplicate$ -- 2326
+empty$ -- 1640
+format.name$ -- 448
+if$ -- 6699
+int.to.chr$ -- 2
+int.to.str$ -- 1
+missing$ -- 98
+newline$ -- 259
+num.names$ -- 176
+pop$ -- 959
+preamble$ -- 1
+purify$ -- 368
+quote$ -- 0
+skip$ -- 784
+stack$ -- 0
+substring$ -- 1819
+swap$ -- 211
+text.length$ -- 0
+text.prefix$ -- 0
+top$ -- 0
+type$ -- 492
+warning$ -- 32
+while$ -- 137
+width$ -- 0
+write$ -- 449
+(There were 32 warnings)

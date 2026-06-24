@@ -1,0 +1,127 @@
+{
+  "strategy_names": [
+    "walk",
+    "tough",
+    "nfsp",
+    "mappo",
+    "soft",
+    "ppo",
+    "psro",
+    "ef1_bargainer",
+    "openai_5.2_none",
+    "openai_5.2_low",
+    "openai_5.4_low",
+    "openai_5.4_medium",
+    "openai_5.2_medium"
+  ],
+  "n": 13,
+  "uw_full": 734.6675099757704,
+  "full_support": [
+    -0.0,
+    -0.0,
+    -0.0,
+    -0.0,
+    -0.0,
+    0.7962359567569351,
+    0.20376404324306485,
+    -0.0,
+    -0.0,
+    -0.0,
+    -0.0,
+    -0.0,
+    -0.0
+  ],
+  "loo": [
+    {
+      "strategy": "walk",
+      "full_support": -0.0,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 734.6675099757706,
+      "d_uw": -2.2737367544323206e-13
+    },
+    {
+      "strategy": "tough",
+      "full_support": -0.0,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 734.6675099757706,
+      "d_uw": -2.2737367544323206e-13
+    },
+    {
+      "strategy": "nfsp",
+      "full_support": -0.0,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 734.667509975763,
+      "d_uw": 7.389644451905042e-12
+    },
+    {
+      "strategy": "mappo",
+      "full_support": -0.0,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 734.6675099757703,
+      "d_uw": 1.1368683772161603e-13
+    },
+    {
+      "strategy": "soft",
+      "full_support": -0.0,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 734.6675099757704,
+      "d_uw": 0.0
+    },
+    {
+      "strategy": "ppo",
+      "full_support": 0.7962359567569351,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 728.4093789278119,
+      "d_uw": 6.2581310479585
+    },
+    {
+      "strategy": "psro",
+      "full_support": 0.20376404324306485,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 773.7519633285032,
+      "d_uw": -39.084453352732794
+    },
+    {
+      "strategy": "ef1_bargainer",
+      "full_support": -0.0,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 734.6675099757707,
+      "d_uw": -3.410605131648481e-13
+    },
+    {
+      "strategy": "openai_5.2_none",
+      "full_support": -0.0,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 734.6675099757734,
+      "d_uw": -3.069544618483633e-12
+    },
+    {
+      "strategy": "openai_5.2_low",
+      "full_support": -0.0,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 745.5336947194038,
+      "d_uw": -10.866184743633426
+    },
+    {
+      "strategy": "openai_5.4_low",
+      "full_support": -0.0,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 734.6675099757704,
+      "d_uw": 0.0
+    },
+    {
+      "strategy": "openai_5.4_medium",
+      "full_support": -0.0,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 734.6675099757808,
+      "d_uw": -1.0459189070388675e-11
+    },
+    {
+      "strategy": "openai_5.2_medium",
+      "full_support": -0.0,
+      "uw_full": 734.6675099757704,
+      "uw_loo": 734.6675099757647,
+      "d_uw": 5.6843418860808015e-12
+    }
+  ]
+}

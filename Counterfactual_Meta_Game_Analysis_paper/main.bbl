@@ -1,0 +1,358 @@
+%%% -*-BibTeX-*-
+%%% Do NOT edit. File created by BibTeX with style
+%%% ACM-Reference-Format-Journals [18-Jan-2012].
+
+\begin{thebibliography}{22}
+
+%%% ====================================================================
+%%% NOTE TO THE USER: you can override these defaults by providing
+%%% customized versions of any of these macros before the \bibliography
+%%% command.  Each of them MUST provide its own final punctuation,
+%%% except for \shownote{}, \showDOI{}, and \showURL{}.  The latter two
+%%% do not use final punctuation, in order to avoid confusing it with
+%%% the Web address.
+%%%
+%%% To suppress output of a particular field, define its macro to expand
+%%% to an empty string, or better, \unskip, like this:
+%%%
+%%% \newcommand{\showDOI}[1]{\unskip}   % LaTeX syntax
+%%%
+%%% \def \showDOI #1{\unskip}           % plain TeX syntax
+%%%
+%%% ====================================================================
+
+\ifx \showCODEN    \undefined \def \showCODEN     #1{\unskip}     \fi
+\ifx \showDOI      \undefined \def \showDOI       #1{#1}\fi
+\ifx \showISBNx    \undefined \def \showISBNx     #1{\unskip}     \fi
+\ifx \showISBNxiii \undefined \def \showISBNxiii  #1{\unskip}     \fi
+\ifx \showISSN     \undefined \def \showISSN      #1{\unskip}     \fi
+\ifx \showLCCN     \undefined \def \showLCCN      #1{\unskip}     \fi
+\ifx \shownote     \undefined \def \shownote      #1{#1}          \fi
+\ifx \showarticletitle \undefined \def \showarticletitle #1{#1}   \fi
+\ifx \showURL      \undefined \def \showURL       {\relax}        \fi
+% The following commands are used for tagged output and should be
+% invisible to TeX
+\providecommand\bibfield[2]{#2}
+\providecommand\bibinfo[2]{#2}
+\providecommand\natexlab[1]{#1}
+\providecommand\showeprint[2][]{arXiv:#2}
+
+\bibitem[\protect\citeauthoryear{Asheim, Voorneveld, and Weibull}{Asheim
+  et~al\mbox{.}}{2016}]%
+        {asheim2016epistemically}
+\bibfield{author}{\bibinfo{person}{Geir~B. Asheim}, \bibinfo{person}{Mark
+  Voorneveld}, {and} \bibinfo{person}{J{\"o}rgen~W. Weibull}.}
+  \bibinfo{year}{2016}\natexlab{}.
+\newblock \showarticletitle{Epistemically Robust Strategy Subsets}.
+\newblock \bibinfo{journal}{\emph{Games}} \bibinfo{volume}{7},
+  \bibinfo{number}{4} (\bibinfo{year}{2016}), \bibinfo{pages}{37}.
+\newblock
+\urldef\tempurl%
+\url{https://doi.org/10.3390/g7040037}
+\showDOI{\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Balduzzi, Tuyls, P{\'e}rolat, and
+  Graepel}{Balduzzi et~al\mbox{.}}{2018}]%
+        {Balduzzi2018ReevaluatingE}
+\bibfield{author}{\bibinfo{person}{David Balduzzi}, \bibinfo{person}{Karl
+  Tuyls}, \bibinfo{person}{Julien P{\'e}rolat}, {and} \bibinfo{person}{Thore
+  Graepel}.} \bibinfo{year}{2018}\natexlab{}.
+\newblock \showarticletitle{Re-evaluating evaluation}.
+\newblock \bibinfo{journal}{\emph{ArXiv}}  \bibinfo{volume}{abs/1806.02643}
+  (\bibinfo{year}{2018}).
+\newblock
+\urldef\tempurl%
+\url{https://api.semanticscholar.org/CorpusID:46976300}
+\showURL{%
+\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Barnett, Wantlin, and Adams}{Barnett
+  et~al\mbox{.}}{2025}]%
+        {barnett2025measuring}
+\bibfield{author}{\bibinfo{person}{Samuel~A. Barnett}, \bibinfo{person}{Kathryn
+  Wantlin}, {and} \bibinfo{person}{Ryan~P. Adams}.}
+  \bibinfo{year}{2025}\natexlab{}.
+\newblock \showarticletitle{Measuring Cooperation with Counterfactual
+  Planning}. In \bibinfo{booktitle}{\emph{Decision and Game Theory for Security
+  (GameSec 2025)}} \emph{(\bibinfo{series}{Lecture Notes in Computer
+  Science})}. \bibinfo{publisher}{Springer}.
+\newblock
+\urldef\tempurl%
+\url{https://doi.org/10.1007/978-3-032-08064-6_2}
+\showDOI{\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Basu and Weibull}{Basu and Weibull}{1991}]%
+        {Basu1991StrategySC}
+\bibfield{author}{\bibinfo{person}{Kaushik Basu} {and}
+  \bibinfo{person}{J{\~A}¶rgen~W. Weibull}.} \bibinfo{year}{1991}\natexlab{}.
+\newblock \showarticletitle{Strategy subsets closed under rational behavior}.
+\newblock \bibinfo{journal}{\emph{Economics Letters}}  \bibinfo{volume}{36}
+  (\bibinfo{year}{1991}), \bibinfo{pages}{141--146}.
+\newblock
+\urldef\tempurl%
+\url{https://api.semanticscholar.org/CorpusID:153468127}
+\showURL{%
+\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Benisch, Davis, and Sandholm}{Benisch
+  et~al\mbox{.}}{2010}]%
+        {Benisch2010AlgorithmsFC}
+\bibfield{author}{\bibinfo{person}{Michael Benisch}, \bibinfo{person}{George~B.
+  Davis}, {and} \bibinfo{person}{Tuomas Sandholm}.}
+  \bibinfo{year}{2010}\natexlab{}.
+\newblock \showarticletitle{Algorithms for Closed Under Rational Behavior
+  (CURB) Sets}.
+\newblock \bibinfo{journal}{\emph{ArXiv}}  \bibinfo{volume}{abs/1401.3855}
+  (\bibinfo{year}{2010}).
+\newblock
+\urldef\tempurl%
+\url{https://api.semanticscholar.org/CorpusID:5779279}
+\showURL{%
+\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Bertrand, Czarnecki, and Gidel}{Bertrand
+  et~al\mbox{.}}{2023}]%
+        {bertrand2023limitations}
+\bibfield{author}{\bibinfo{person}{Quentin Bertrand},
+  \bibinfo{person}{Wojciech~Marian Czarnecki}, {and} \bibinfo{person}{Gauthier
+  Gidel}.} \bibinfo{year}{2023}\natexlab{}.
+\newblock \showarticletitle{On the limitations of the elo, real-world games are
+  transitive, not additive}. In \bibinfo{booktitle}{\emph{International
+  Conference on Artificial Intelligence and Statistics}}. PMLR,
+  \bibinfo{pages}{2905--2921}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Conitzer and Oesterheld}{Conitzer and
+  Oesterheld}{2023}]%
+        {conitzer2023foundations}
+\bibfield{author}{\bibinfo{person}{Vincent Conitzer} {and}
+  \bibinfo{person}{Caspar Oesterheld}.} \bibinfo{year}{2023}\natexlab{}.
+\newblock \showarticletitle{Foundations of Cooperative AI}. In
+  \bibinfo{booktitle}{\emph{Proceedings of the AAAI Conference on Artificial
+  Intelligence}}, Vol.~\bibinfo{volume}{37}. \bibinfo{pages}{15359--15367}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Dafoe, Bachrach, Hadfield, Horvitz, Larson,
+  and Graepel}{Dafoe et~al\mbox{.}}{2021}]%
+        {dafoe2021cooperative}
+\bibfield{author}{\bibinfo{person}{Allan Dafoe}, \bibinfo{person}{Yoram
+  Bachrach}, \bibinfo{person}{Gillian Hadfield}, \bibinfo{person}{Eric
+  Horvitz}, \bibinfo{person}{Kate Larson}, {and} \bibinfo{person}{Thore
+  Graepel}.} \bibinfo{year}{2021}\natexlab{}.
+\newblock \showarticletitle{Cooperative {AI}: machines must learn to find
+  common ground}.
+\newblock \bibinfo{journal}{\emph{Nature}} \bibinfo{volume}{593},
+  \bibinfo{number}{7857} (\bibinfo{year}{2021}), \bibinfo{pages}{33--36}.
+\newblock
+\urldef\tempurl%
+\url{https://doi.org/10.1038/d41586-021-01170-0}
+\showDOI{\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Dafoe, Hughes, Bachrach, Collins, McKee,
+  Leibo, Larson, and Graepel}{Dafoe et~al\mbox{.}}{2020}]%
+        {Dafoe2020OpenPI}
+\bibfield{author}{\bibinfo{person}{Allan Dafoe}, \bibinfo{person}{Edward
+  Hughes}, \bibinfo{person}{Yoram Bachrach}, \bibinfo{person}{Tantum Collins},
+  \bibinfo{person}{Kevin~R. McKee}, \bibinfo{person}{Joel~Z. Leibo},
+  \bibinfo{person}{K. Larson}, {and} \bibinfo{person}{Thore Graepel}.}
+  \bibinfo{year}{2020}\natexlab{}.
+\newblock \showarticletitle{Open Problems in Cooperative AI}.
+\newblock \bibinfo{journal}{\emph{ArXiv}}  \bibinfo{volume}{abs/2012.08630}
+  (\bibinfo{year}{2020}).
+\newblock
+\urldef\tempurl%
+\url{https://api.semanticscholar.org/CorpusID:229220772}
+\showURL{%
+\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Du, Leibo, Islam, Willis, and Sunehag}{Du
+  et~al\mbox{.}}{2023}]%
+        {Du2023ARO}
+\bibfield{author}{\bibinfo{person}{Yali Du}, \bibinfo{person}{Joel~Z. Leibo},
+  \bibinfo{person}{Usman Islam}, \bibinfo{person}{Richard Willis}, {and}
+  \bibinfo{person}{Peter Sunehag}.} \bibinfo{year}{2023}\natexlab{}.
+\newblock \showarticletitle{A Review of Cooperation in Multi-agent Learning}.
+\newblock \bibinfo{journal}{\emph{ArXiv}}  \bibinfo{volume}{abs/2312.05162}
+  (\bibinfo{year}{2023}).
+\newblock
+\urldef\tempurl%
+\url{https://api.semanticscholar.org/CorpusID:266149791}
+\showURL{%
+\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Foerster, Farquhar, Afouras, Nardelli, and
+  Whiteson}{Foerster et~al\mbox{.}}{2018}]%
+        {foerster2018counterfactual}
+\bibfield{author}{\bibinfo{person}{Jakob~N. Foerster}, \bibinfo{person}{Gregory
+  Farquhar}, \bibinfo{person}{Triantafyllos Afouras}, \bibinfo{person}{Nantas
+  Nardelli}, {and} \bibinfo{person}{Shimon Whiteson}.}
+  \bibinfo{year}{2018}\natexlab{}.
+\newblock \showarticletitle{Counterfactual Multi-Agent Policy Gradients}. In
+  \bibinfo{booktitle}{\emph{Proceedings of the Thirty-Second AAAI Conference on
+  Artificial Intelligence (AAAI-18)}}. \bibinfo{pages}{2974--2982}.
+\newblock
+\urldef\tempurl%
+\url{https://doi.org/10.1609/AAAI.V32I1.11794}
+\showDOI{\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Hurkens}{Hurkens}{1995}]%
+        {Hurkens1995LearningBF}
+\bibfield{author}{\bibinfo{person}{Sjaak Hurkens}.}
+  \bibinfo{year}{1995}\natexlab{}.
+\newblock \showarticletitle{Learning by Forgetful Players}.
+\newblock \bibinfo{journal}{\emph{Games and Economic Behavior}}
+  \bibinfo{volume}{11} (\bibinfo{year}{1995}), \bibinfo{pages}{304--329}.
+\newblock
+\urldef\tempurl%
+\url{https://api.semanticscholar.org/CorpusID:5994446}
+\showURL{%
+\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Klimm and Weibull}{Klimm and Weibull}{2009}]%
+        {Klimm2009FindingAM}
+\bibfield{author}{\bibinfo{person}{Max Klimm} {and}
+  \bibinfo{person}{J{\"o}rgen~W. Weibull}.} \bibinfo{year}{2009}\natexlab{}.
+\newblock \showarticletitle{Finding all minimal curb sets}.
+\newblock
+\urldef\tempurl%
+\url{https://api.semanticscholar.org/CorpusID:13899254}
+\showURL{%
+\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Leibo, Zambaldi, Lanctot, Marecki, and
+  Graepel}{Leibo et~al\mbox{.}}{2017}]%
+        {leibo2017multiagent}
+\bibfield{author}{\bibinfo{person}{Joel~Z. Leibo}, \bibinfo{person}{Vinicius
+  Zambaldi}, \bibinfo{person}{Marc Lanctot}, \bibinfo{person}{Janusz Marecki},
+  {and} \bibinfo{person}{Thore Graepel}.} \bibinfo{year}{2017}\natexlab{}.
+\newblock \showarticletitle{Multi-agent Reinforcement Learning in Sequential
+  Social Dilemmas}. In \bibinfo{booktitle}{\emph{Proceedings of the 16th
+  International Conference on Autonomous Agents and Multiagent Systems
+  (AAMAS)}}. \bibinfo{pages}{464--473}.
+\newblock
+\newblock
+\shownote{arXiv:1702.03037.}
+
+
+\bibitem[\protect\citeauthoryear{Li and Wellman}{Li and Wellman}{2024}]%
+        {Li2024AME}
+\bibfield{author}{\bibinfo{person}{Zun Li} {and} \bibinfo{person}{Michael~P.
+  Wellman}.} \bibinfo{year}{2024}\natexlab{}.
+\newblock \showarticletitle{A Meta-Game Evaluation Framework for Deep
+  Multiagent Reinforcement Learning}. In
+  \bibinfo{booktitle}{\emph{International Joint Conference on Artificial
+  Intelligence}}.
+\newblock
+\urldef\tempurl%
+\url{https://api.semanticscholar.org/CorpusID:269484303}
+\showURL{%
+\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Liu, Gemp, Marris, Piliouras, Heess, and
+  Lanctot}{Liu et~al\mbox{.}}{2025}]%
+        {liu2025reevaluating}
+\bibfield{author}{\bibinfo{person}{Siqi Liu}, \bibinfo{person}{Ian Gemp},
+  \bibinfo{person}{Luke Marris}, \bibinfo{person}{Georgios Piliouras},
+  \bibinfo{person}{Nicolas Heess}, {and} \bibinfo{person}{Marc Lanctot}.}
+  \bibinfo{year}{2025}\natexlab{}.
+\newblock \showarticletitle{Re-evaluating Open-ended Evaluation of Large
+  Language Models}. In \bibinfo{booktitle}{\emph{International Conference on
+  Learning Representations (ICLR)}}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Luo, Schoepflin, and Wang}{Luo
+  et~al\mbox{.}}{2026}]%
+        {Luo2026}
+\bibfield{author}{\bibinfo{person}{Yuhong Luo}, \bibinfo{person}{Daniel
+  Schoepflin}, {and} \bibinfo{person}{Xintong Wang}.}
+  \bibinfo{year}{2026}\natexlab{}.
+\newblock \showarticletitle{Algorithmic Collusion at Test Time: A Meta-game
+  Design and Evaluation}. In \bibinfo{booktitle}{\emph{Proceedings of the
+  International Conference on Autonomous Agents and Multiagent Systems
+  (AAMAS)}}.
+\newblock
+\urldef\tempurl%
+\url{https://doi.org/10.48550/arXiv.2602.17203}
+\showDOI{\tempurl}
+
+
+\bibitem[\protect\citeauthoryear{Marris, Liu, Gemp, Piliouras, and
+  Lanctot}{Marris et~al\mbox{.}}{2025}]%
+        {marris2025deviation}
+\bibfield{author}{\bibinfo{person}{Luke Marris}, \bibinfo{person}{Siqi Liu},
+  \bibinfo{person}{Ian Gemp}, \bibinfo{person}{Georgios Piliouras}, {and}
+  \bibinfo{person}{Marc Lanctot}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \showarticletitle{Deviation Ratings: A General, Clone-Invariant
+  Rating Method}.
+\newblock \bibinfo{journal}{\emph{arXiv preprint arXiv:2502.11645}}
+  (\bibinfo{year}{2025}).
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Norde, Potters, Reijnierse, and
+  Vermeulen}{Norde et~al\mbox{.}}{1996}]%
+        {norde1996equilibrium}
+\bibfield{author}{\bibinfo{person}{Henk Norde}, \bibinfo{person}{Jos Potters},
+  \bibinfo{person}{Hans Reijnierse}, {and} \bibinfo{person}{Dries Vermeulen}.}
+  \bibinfo{year}{1996}\natexlab{}.
+\newblock \showarticletitle{Equilibrium Selection and Consistency}.
+\newblock \bibinfo{journal}{\emph{Games and Economic Behavior}}
+  \bibinfo{volume}{12} (\bibinfo{year}{1996}), \bibinfo{pages}{219--225}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Smithline, Mascioli, Chakraborty, and
+  Wellman}{Smithline et~al\mbox{.}}{2025}]%
+        {smithline2025measuring}
+\bibfield{author}{\bibinfo{person}{Gabe Smithline}, \bibinfo{person}{Chris
+  Mascioli}, \bibinfo{person}{Mithun Chakraborty}, {and}
+  \bibinfo{person}{Michael~P. Wellman}.} \bibinfo{year}{2025}\natexlab{}.
+\newblock \showarticletitle{Measuring Competition and Cooperation in {LLM}
+  Bargaining: An Empirical Meta-Game Analysis}. In
+  \bibinfo{booktitle}{\emph{AgentBeats Competition}}. University of Michigan.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Voorneveld, Kets, and Norde}{Voorneveld
+  et~al\mbox{.}}{2005}]%
+        {voorneveld2005axiomatization}
+\bibfield{author}{\bibinfo{person}{Mark Voorneveld}, \bibinfo{person}{Willemien
+  Kets}, {and} \bibinfo{person}{Henk Norde}.} \bibinfo{year}{2005}\natexlab{}.
+\newblock \showarticletitle{An Axiomatization of Minimal CURB Sets}.
+\newblock \bibinfo{journal}{\emph{International Journal of Game Theory}}
+  \bibinfo{volume}{33} (\bibinfo{year}{2005}), \bibinfo{pages}{479--490}.
+\newblock
+
+
+\bibitem[\protect\citeauthoryear{Wellman, Tuyls, and Greenwald}{Wellman
+  et~al\mbox{.}}{2025}]%
+        {wellman2025empirical}
+\bibfield{author}{\bibinfo{person}{Michael~P Wellman}, \bibinfo{person}{Karl
+  Tuyls}, {and} \bibinfo{person}{Amy Greenwald}.}
+  \bibinfo{year}{2025}\natexlab{}.
+\newblock \showarticletitle{Empirical Game-Theoretic Analysis: A Survey}.
+\newblock \bibinfo{journal}{\emph{Journal of Artificial Intelligence Research}}
+   \bibinfo{volume}{82} (\bibinfo{year}{2025}), \bibinfo{pages}{1017--1076}.
+\newblock
+\urldef\tempurl%
+\url{https://www.jair.org/index.php/jair/article/view/16146}
+\showURL{%
+\tempurl}
+
+
+\end{thebibliography}

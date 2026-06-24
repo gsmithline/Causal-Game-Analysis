@@ -36,16 +36,20 @@ STRATEGY_ORDER = [
 ]
 
 DISPLAY_NAMES = {
-    "walk": "Walk",
-    "tough": "Tough",
-    "nfsp": "NFSP",
-    "mappo": "MAPPO",
-    "soft": "Soft",
-    "ppo": "PPO",
-    "psro": "PSRO",
-    "openai_5.2_none": "OpenAI-5.2",
-    "openai_5.2_low": "OpenAI-5.2-Low",
-    "ef1_bargainer": "EF1",
+    "walk": "walk",
+    "tough": "tough",
+    "nfsp": "nfsp",
+    "mappo": "mappo",
+    "soft": "soft",
+    "ppo": "ppo",
+    "psro": "psro",
+    "openai_5.2_none": "5.2-none",
+    "openai_5.2_low": "5.2-low",
+    "openai_5.2_medium": "5.2-med",
+    "openai_5.4_low": "5.4-low",
+    "openai_5.4_medium": "5.4-med",
+    "ef1_bargainer": "ef1",
+    "aspiration": "aspire",
 }
 
 _TAB10 = plt.cm.tab10.colors

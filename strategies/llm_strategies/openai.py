@@ -298,7 +298,16 @@ class OpenAIPolicy(nn.Module):
         for i in range(batch_size):
             state = _parse_obs(obs[i])
             prompt = _build_user_prompt(state)
-            response_text, reasoning_summary = self.query_llm(state)
+            try:
+                response_text, reasoning_summary = self.query_llm(state)
+            except Exception as e:
+                # Retry once on content filter / transient errors
+                import time
+                time.sleep(1)
+                try:
+                    response_text, reasoning_summary = self.query_llm(state)
+                except Exception:
+                    raise  # re-raise so the game is skipped, not silently corrupted
             action_idx = _parse_llm_response(response_text, action_mask[i], state["player"])
             logits[i, action_idx] = 0.0
 

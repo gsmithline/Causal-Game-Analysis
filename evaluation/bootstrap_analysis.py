@@ -7,6 +7,8 @@ Resamples game data with replacement to compute:
 """
 
 import json
+import hashlib
+import pickle
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
@@ -15,6 +17,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from evaluation.data_saver import get_matchup_dirname
 from visuals.avg_best_response_graph_visual import create_average_best_response_graph
+
+
+def _matchup_cache_key(games_path: Path) -> str:
+    """Hash per-matchup based on games.json mtime+size. Busts on data change."""
+    st = games_path.stat()
+    h = hashlib.sha256(f"{st.st_mtime_ns}:{st.st_size}".encode())
+    return h.hexdigest()[:12]
 
 
 
@@ -26,6 +35,8 @@ def load_all_games(crossplay_dir: Path, strategy_names: List[str]) -> Dict[Tuple
         Dict mapping (strategy_p1_name, strategy_p2_name) -> list of games
     """
     crossplay_dir = Path(crossplay_dir)
+    cache_dir = crossplay_dir / ".cache_bootstrap"
+    cache_dir.mkdir(exist_ok=True)
     all_games = {}
 
     for strat_i in strategy_names:
@@ -33,15 +44,75 @@ def load_all_games(crossplay_dir: Path, strategy_names: List[str]) -> Dict[Tuple
             matchup_dir = crossplay_dir / get_matchup_dirname(strat_i, strat_j)
             games_path = matchup_dir / "games.json"
 
-            if games_path.exists():
-                with open(games_path) as f:
-                    data = json.load(f)
-                all_games[(strat_i, strat_j)] = data['games']
-            else:
+            if not games_path.exists():
                 print(f"Warning: No games found for {strat_i} vs {strat_j}")
                 all_games[(strat_i, strat_j)] = []
+                continue
+
+            key = _matchup_cache_key(games_path)
+            cache_path = cache_dir / f"{strat_i}_p1_vs_{strat_j}_p2_{key}.pkl"
+
+            if cache_path.exists():
+                with open(cache_path, "rb") as f:
+                    games = pickle.load(f)
+            else:
+                with open(games_path) as f:
+                    data = json.load(f)
+                games = data['games']
+                # Cap aspiration vs openai_5.2_none at 2000 games to match level1
+                if {strat_i, strat_j} == {"aspiration", "openai_5.2_none"} and len(games) > 2000:
+                    games = games[:2000]
+                with open(cache_path, "wb") as f:
+                    pickle.dump(games, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            all_games[(strat_i, strat_j)] = games
 
     return all_games
+
+
+def preprocess_payoffs(
+    all_games: Dict[Tuple[str, str], List[Dict]],
+) -> Dict[Tuple[str, str], Tuple[np.ndarray, np.ndarray]]:
+    """Extract payoff_p1 and payoff_p2 into numpy arrays per matchup. Run once."""
+    out = {}
+    for key, games in all_games.items():
+        if len(games) == 0:
+            out[key] = (np.array([]), np.array([]))
+            continue
+        p1 = np.fromiter((g['outcome']['payoff_p1'] for g in games), dtype=np.float64, count=len(games))
+        p2 = np.fromiter((g['outcome']['payoff_p2'] for g in games), dtype=np.float64, count=len(games))
+        out[key] = (p1, p2)
+    return out
+
+
+def compute_payoff_matrix_fast(
+    payoff_arrays: Dict[Tuple[str, str], Tuple[np.ndarray, np.ndarray]],
+    strategy_names: List[str],
+    sample_indices: Dict[Tuple[str, str], np.ndarray] = None,
+) -> np.ndarray:
+    """Vectorized version of compute_payoff_matrix_from_games."""
+    n = len(strategy_names)
+    payoff_matrix = np.zeros((n, n))
+
+    for i, strat_i in enumerate(strategy_names):
+        for j, strat_j in enumerate(strategy_names):
+            p1_i_vs_j, _ = payoff_arrays.get((strat_i, strat_j), (np.array([]), np.array([])))
+            _, p2_i_as_p2 = payoff_arrays.get((strat_j, strat_i), (np.array([]), np.array([])))
+
+            if sample_indices is not None:
+                idx1 = sample_indices.get((strat_i, strat_j))
+                idx2 = sample_indices.get((strat_j, strat_i))
+                vals1 = p1_i_vs_j[idx1] if idx1 is not None and len(p1_i_vs_j) > 0 else p1_i_vs_j
+                vals2 = p2_i_as_p2[idx2] if idx2 is not None and len(p2_i_as_p2) > 0 else p2_i_as_p2
+            else:
+                vals1, vals2 = p1_i_vs_j, p2_i_as_p2
+
+            total = vals1.sum() + vals2.sum()
+            count = len(vals1) + len(vals2)
+            if count > 0:
+                payoff_matrix[i, j] = total / count
+
+    return payoff_matrix
 
 
 def compute_payoff_matrix_from_games(
@@ -183,6 +254,10 @@ def bootstrap_average_br_matrix(
     rng = np.random.default_rng(seed)
     n = len(strategy_names)
 
+    if verbose:
+        print("  Preprocessing payoffs into numpy arrays...")
+    payoff_arrays = preprocess_payoffs(all_games)
+
     # Collect BR matrices from each bootstrap sample
     br_matrices = []
 
@@ -197,7 +272,7 @@ def bootstrap_average_br_matrix(
             else:
                 sample_indices[key] = np.array([], dtype=int)
 
-        payoff_matrix = compute_payoff_matrix_from_games(all_games, strategy_names, sample_indices)
+        payoff_matrix = compute_payoff_matrix_fast(payoff_arrays, strategy_names, sample_indices)
 
         br_matrix = compute_best_response_matrix(payoff_matrix)
         br_matrices.append(br_matrix)
@@ -310,6 +385,10 @@ def bootstrap_average_preference_graph(
     rng = np.random.default_rng(seed)
     n = len(strategy_names)
 
+    if verbose:
+        print("  Preprocessing payoffs into numpy arrays...")
+    payoff_arrays = preprocess_payoffs(all_games)
+
     p1_matrices = []
     p2_matrices = []
 
@@ -324,7 +403,7 @@ def bootstrap_average_preference_graph(
             else:
                 sample_indices[key] = np.array([], dtype=int)
 
-        payoff_matrix = compute_payoff_matrix_from_games(all_games, strategy_names, sample_indices)
+        payoff_matrix = compute_payoff_matrix_fast(payoff_arrays, strategy_names, sample_indices)
         adj_p1, adj_p2 = compute_preference_graph(payoff_matrix)
         p1_matrices.append(adj_p1)
         p2_matrices.append(adj_p2)
@@ -479,7 +558,7 @@ if __name__ == "__main__":
             matrix_data = json.load(f)
         strategy_names = matrix_data["strategy_names"]
     else:
-        strategy_names = ["walk", "tough", "soft", "nfsp", "mappo", "ppo", "psro", "openai_5.2_none", "openai_5.2_low", "ef1_bargainer", "openai_5.4_low","openai_5.4_medium",  "openai_5.2_medium"]
+        strategy_names = ["walk", "tough", "soft", "nfsp", "mappo", "ppo", "psro", "openai_5.2_none", "openai_5.2_low", "ef1_bargainer", "aspiration", "openai_5.4_low","openai_5.4_medium",  "openai_5.2_medium"]
         #strategy_names = ["openai_5.2_low", "openai_5.2_none", "openai_5.4_low", "openai_5.4_medium",  "openai_5.2_medium"]
 
     avg_br_matrix = run_bootstrap_analysis(

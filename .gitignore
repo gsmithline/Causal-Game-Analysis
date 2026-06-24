@@ -69,6 +69,10 @@ Thumbs.db
 CLAUDE.MD
 llm_meta_game.pdf
 OPENAI_API_KEY.txt
+KAGGLE_API.txt
 
 #game data
 data/
+
+# paper source (kept local, never committed)
+paper/

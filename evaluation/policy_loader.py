@@ -26,6 +26,7 @@ from strategies.soft.policy import SoftPolicy
 from strategies.tough.policy import ToughPolicy
 from strategies.llm_strategies.openai import OpenAIPolicy
 from strategies.ef1_bargainer.ef1_agent import EF1Agent, EF1Policy
+from strategies.aspiration.aspiration_agent import AspirationAgent, AspirationPolicy
 
 class MixturePolicy(nn.Module):
     """
@@ -396,6 +397,23 @@ def load_ef1_policy(name: str, path: Path) -> Strategy:
     return Strategy(name=name, p1_policy=p1_policy, p2_policy=p2_policy, algorithm="ef1_bargainer")
 
 
+def load_aspiration_strategy(name: str, path: Path) -> Strategy:
+    """
+    Load aspiration-based concession schedule agent.
+
+    Uses a predefined aspiration curve (polynomial/exponential/geometric)
+    combined with BATNA protection, discount warping, and offer mirroring.
+    """
+    agent_kwargs = {"aspiration_profile": "boulware"}
+    p1_policy = AspirationPolicy(**agent_kwargs)
+    p2_policy = AspirationPolicy(**agent_kwargs)
+
+    p1_policy.eval()
+    p2_policy.eval()
+
+    return Strategy(name=name, p1_policy=p1_policy, p2_policy=p2_policy, algorithm="aspiration")
+
+
 def load_openai_strategy(name: str, path: Path, model: str = "5.2",
                          reasoning_effort: str = "none") -> Strategy:
     """
@@ -441,7 +459,8 @@ STRATEGY_LOADERS: Dict[str, Callable] = {
     "soft": load_soft_strategy,
     "tough": load_tough_strategy,
     "llm_strategies": load_openai_strategy,
-    "ef1_bargainer": load_ef1_policy
+    "ef1_bargainer": load_ef1_policy,
+    "aspiration": load_aspiration_strategy
 }
 
 

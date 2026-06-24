@@ -432,6 +432,7 @@ def run_crossplay(
 
     games = []
 
+    skipped = 0
     for game_id in range(num_games):
         # Reset environment for new game
         env.reset()
@@ -440,8 +441,16 @@ def run_crossplay(
         strategy_p1.reset_mixture_sampling()
         strategy_p2.reset_mixture_sampling()
 
-        # Run single game
-        actions, outcome, traces = run_single_game(env, strategy_p1, strategy_p2, env_idx=0)
+        # Run single game — skip on API errors (e.g. OpenAI content filter)
+        try:
+            actions, outcome, traces = run_single_game(env, strategy_p1, strategy_p2, env_idx=0)
+        except Exception as e:
+            skipped += 1
+            if skipped <= 3:
+                print(f"    Game {game_id} skipped: {e}")
+            elif skipped == 4:
+                print(f"    (suppressing further skip messages)")
+            continue
 
         games.append(GameRecord(
             game_id=game_id,
@@ -451,12 +460,15 @@ def run_crossplay(
         ))
 
         if verbose and (game_id + 1) % 20 == 0:
-            print(f"  Completed {game_id + 1}/{num_games} games")
+            print(f"  Completed {game_id + 1}/{num_games} games ({skipped} skipped)")
+
+    if skipped > 0:
+        print(f"  Total skipped: {skipped}/{num_games}")
 
     return MatchupResult(
         strategy_p1=strategy_p1.name,
         strategy_p2=strategy_p2.name,
-        num_games=num_games,
+        num_games=len(games),
         games=games
     )
 

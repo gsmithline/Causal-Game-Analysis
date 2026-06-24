@@ -14,6 +14,7 @@ import matplotlib.patheffects as pe
 from matplotlib import cm, colors
 from matplotlib.patches import FancyArrowPatch
 import re
+from visuals.visualize_analysis import DISPLAY_NAMES
 
 def create_average_best_response_graph(
     avg_br_matrix,
@@ -221,16 +222,8 @@ def create_average_best_response_graph(
 
     # 9) Draw labels with halo
     labels = {}
-    pat = re.compile(r'(-c-\d+)$')
     for name in agent_names:
-        m = pat.search(name)
-        if m:
-            head = name[:m.start()]
-            tail = m.group(1)
-            # two lines: "head" on top, "-c-#" underneath
-            labels[name] = f"{head}\n{tail}"
-        else:
-            labels[name] = name
+        labels[name] = DISPLAY_NAMES.get(name, name)
 
     labels = nx.draw_networkx_labels(
         G, pos,

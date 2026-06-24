@@ -33,8 +33,12 @@ from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.iterative_game_analysis.metagame import MetaGame
-from visuals.visualize_analysis import DISPLAY_NAMES, STRATEGY_ORDER
+# MetaGame and visualization symbols are imported lazily inside the functions
+# that use them. Top-level imports trigger an expensive transitive chain
+# (matplotlib, repo data loaders) that the CURB algorithms themselves do not
+# need; importing them lazily keeps consumers like
+# evaluation/persistent_retracts.py and the standalone exploration scripts
+# from paying the cost.
 
 # Metric keys for welfare/fairness matrices (excluding payoff which is used
 # to solve the equilibrium and to derive UW).
@@ -70,6 +74,7 @@ def solve_restricted_equilibrium(payoff_sub, policy_names, solver="mene"):
     """
     if payoff_sub.shape[0] == 1:
         return np.array([1.0])
+    from src.iterative_game_analysis.metagame import MetaGame
     mg = MetaGame(policies=policy_names, payoff_matrix=payoff_sub)
     return mg.solve(solver)
 
@@ -1058,11 +1063,13 @@ def aggregate_curb_results(all_results, strategy_names):
 
 def _dn(strategy):
     """Return display name for a strategy."""
+    from visuals.visualize_analysis import DISPLAY_NAMES
     return DISPLAY_NAMES.get(strategy, strategy)
 
 
 def _set_str(S_indices, strategy_names):
     """Format a frozenset of indices as a comma-separated display-name string."""
+    from visuals.visualize_analysis import STRATEGY_ORDER
     names = sorted([strategy_names[i] for i in S_indices],
                    key=lambda s: STRATEGY_ORDER.index(s) if s in STRATEGY_ORDER else 999)
     return "{" + ", ".join(_dn(s) for s in names) + "}"

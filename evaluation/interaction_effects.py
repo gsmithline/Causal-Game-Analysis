@@ -31,7 +31,8 @@ All results are indexed by bootstrap sample b, enabling paired comparisons.
 Comparisons (all paired)
 ------------------------
   1. Singleton marginal effects: d_b = W(full, b) - W(LOO_i, b)
-  2. Harsanyi dividends: d_b = W(full,b) - W(LOO_A,b) - W(LOO_B,b) + W(LTO_AB,b)
+  2. Second-order LOO effects (a.k.a. Harsanyi dividends, Möbius coefficients at the grand coalition):
+       d_b = W(full,b) - W(LOO_A,b) - W(LOO_B,b) + W(LTO_AB,b)
   3. Per-agent spillovers: d_b = V_j(full, b) - V_j(LOO_i, b)
 
 Each uses element-wise paired differences across the same bootstrap index.
@@ -641,7 +642,7 @@ def compute_paired_comparisons(all_results, strategy_names, non_ablatable=None):
 
     Computes:
       1. Singleton marginal effects: W(full, b) - W(LOO_i, b)
-      2. Harsanyi dividends: W(full,b) - W(LOO_A,b) - W(LOO_B,b) + W(LTO_AB,b)
+      2. Second-order LOO effects: W(full,b) - W(LOO_A,b) - W(LOO_B,b) + W(LTO_AB,b)
       3. Per-agent spillovers: V_j(full, b) - V_j(LOO_i, b)
 
     Returns:
@@ -697,7 +698,8 @@ def compute_paired_comparisons(all_results, strategy_names, non_ablatable=None):
             diff = np.array(full_agg[m]) - np.array(loo_agg[m])
             marginal_effects[m][s] = _summarize_diff(diff)
 
-    # 2. Harsanyi dividends (paired)
+    # 2. Second-order LOO effects, paired (dict variable still named
+    #    `harsanyi` for back-compat with consumers of this return value)
     harsanyi = {m: {} for m in METRIC_NAMES}
     for a, b in itertools.combinations(ablatable, 2):
         loo_a = all_results.get(f"loo_{a}", {}).get("aggregate_welfare")

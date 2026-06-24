@@ -2,7 +2,9 @@
 
 Implements the three-level counterfactual framework:
   Level 1: Equilibrium analysis (per-agent metrics at equilibrium)
-  Level 2: LOO + Harsanyi dividends + solver comparison
+  Level 2: LOO + second-order LOO effects (Möbius coefficients at the
+           grand coalition, a.k.a. Harsanyi dividends in cooperative game
+           theory) + solver comparison
   Level 3: CURB-conditional LOO (LOO within strategically coherent restricted games)
 
 All levels operate on the same bootstrapped empirical game per sample,
@@ -37,19 +39,10 @@ from tqdm import tqdm
 from .metagame import MetaGame
 from .utils import compute_regret
 
-# Optional Polarix imports
-try:
-    import polarix as plx
-    import jax.numpy as jnp
-    import jax
-    HAS_POLARIX = True
-except ImportError:
-    HAS_POLARIX = False
-
-
-# ---------------------------------------------------------------------------
-# Solvers
-# ---------------------------------------------------------------------------
+import polarix as plx
+import jax.numpy as jnp
+import jax
+from evaluation.curb_analysis import ( find_minimal_curb_sets_klimm_weibull, curb_closure)
 
 def _solve_mene(payoff_matrix, strategy_names):
     """Solve MENE. Returns sigma or None."""
@@ -63,8 +56,7 @@ def _solve_mene(payoff_matrix, strategy_names):
 def _solve_maxent_cce(payoff_matrix, strategy_names, max_iterations=200_000,
                        gap_threshold=1e-3):
     """Solve maxent CCE via Polarix. Returns sigma or None if not converged."""
-    if not HAS_POLARIX:
-        raise ImportError("Polarix required for maxent_cce. pip install polarix")
+ 
     #eq_matrix = (payoff_matrix + payoff_matrix.T) / 2  # symmetrize for Polarix
     eq_matrix = payoff_matrix
     game = plx.Game(
@@ -83,8 +75,6 @@ def _solve_maxent_cce(payoff_matrix, strategy_names, max_iterations=200_000,
 
 def _solve_lle(payoff_matrix, strategy_names, max_iterations=200_000):
     """Solve LLE via Polarix. Returns sigma or None."""
-    if not HAS_POLARIX:
-        raise ImportError("Polarix required for LLE. pip install polarix")
     #eq_matrix = (payoff_matrix + payoff_matrix.T) / 2
     eq_matrix = payoff_matrix
     game = plx.Game(
@@ -114,23 +104,6 @@ def _solve(solver_name, payoff_matrix, strategy_names):
     return fn(payoff_matrix, strategy_names)
 
 
-# ---------------------------------------------------------------------------
-# CURB set computation (import from evaluation if available, else minimal)
-# ---------------------------------------------------------------------------
-
-try:
-    from evaluation.curb_analysis import (
-        find_minimal_curb_sets_klimm_weibull,
-        curb_closure,
-    )
-    HAS_CURB = True
-except ImportError:
-    HAS_CURB = False
-
-
-# ---------------------------------------------------------------------------
-# Core per-bootstrap analysis
-# ---------------------------------------------------------------------------
 
 def _compute_regret(sigma, payoff_matrix):
     """Compute per-agent regret using the same convention as original_paper_analysis.
@@ -152,52 +125,25 @@ def _eval_per_agent(sigma, metric_matrix):
     return metric_matrix @ sigma
 
 
-def analyze_one_bootstrap(
-    payoff_matrix,
-    metric_matrices,
-    strategy_names,
-    solvers,
-    metrics,
-    non_ablatable=None,
-    do_harsanyi=True,
-    do_curb=True,
-    mc_curb_budget=50,
-):
-    """Run all three levels of analysis on one bootstrapped game.
 
-    Args:
-        payoff_matrix: (n, n) payoff matrix for equilibrium solving.
-        metric_matrices: Dict[str, ndarray] mapping metric name to (n, n) matrix.
-        strategy_names: List of strategy names.
-        solvers: List of solver names (e.g., ["mene", "maxent_cce", "lle"]).
-        metrics: List of metric names (keys into metric_matrices).
-        non_ablatable: Set of strategy names that cannot be removed.
-        do_harsanyi: Whether to compute pairwise Harsanyi dividends.
-        do_curb: Whether to compute Level 3 CURB analysis.
-        mc_curb_budget: Number of MC samples for non-minimal CURB sets.
 
-    Returns:
-        Dict with keys: level1, level2, level3, curb_info.
+def _compute_level1(payoff_matrix, metric_matrices, strategy_names, solvers, metrics):
+    """Level 1: Equilibrium analysis. Returns dict keyed by solver.
+
+    Equivalent to original_paper_analysis.py. Computes:
+      sigma:         equilibrium mixture (same solver, same payoff matrix)
+      per_agent:     (M_k @ sigma) per metric -- per-agent value at equilibrium
+      regret:        compute_regret(sigma, payoff_matrix)
+      welfare:       sigma^T M_k sigma -- total ecosystem welfare
+      welfare_share: sigma_i * (M_k @ sigma)_i -- agent i's share of welfare
+    Values are in raw payoff units. Rankings are identical to original_paper_analysis.
     """
-    n = len(strategy_names)
-    non_ablatable = non_ablatable or set()
-    result = {"level1": {}, "level2": {}, "level3": {}, "curb_info": {}}
-
-    # Level 1: Equilibrium analysis — equivalent to original_paper_analysis.py.
-    # Computes the same quantities:
-    #   sigma:         equilibrium mixture (same solver, same payoff matrix)
-    #   per_agent:     (M_k @ sigma) per metric — per-agent value at equilibrium
-    #   regret:        compute_regret(sigma, payoff_matrix) — same as original
-    #   welfare:       sigma^T M_k sigma — total ecosystem welfare
-    #   welfare_share: sigma_i * (M_k @ sigma)_i — agent i's share of welfare
-    # Note: values are in raw payoff units (not 0-100 normalized as in
-    # original_paper_analysis). Rankings are identical.
+    level1 = {}
     for solver in solvers:
         sigma = _solve(solver, payoff_matrix, strategy_names)
         if sigma is None:
-            result["level1"][solver] = None
+            level1[solver] = None
             continue
-
         l1 = {
             "sigma": sigma,
             "regret": _compute_regret(sigma, payoff_matrix),
@@ -210,18 +156,25 @@ def analyze_one_bootstrap(
             l1["welfare"][m] = _eval_welfare(sigma, M_k)
             per_agent = _eval_per_agent(sigma, M_k)
             l1["per_agent"][m] = per_agent
-            l1["welfare_share"][m] = sigma * per_agent  # σᵢ(Mσ)ᵢ
+            l1["welfare_share"][m] = sigma * per_agent
+        level1[solver] = l1
+    return level1
 
-        result["level1"][solver] = l1
+  
+
+
+def _compute_level2(payoff_matrix, metric_matrices, strategy_names, solvers, metrics, level1, non_ablatable, do_harsanyi):
+    """Level 2: full-game LOO + second-order LOO effects. Returns dict keyed by solver."""
+    n = len(strategy_names)
+    level2 = {}
 
     for solver in solvers:
-        if result["level1"].get(solver) is None:
-            result["level2"][solver] = None
+        if level1.get(solver) is None:
+            level2[solver] = None
             continue
 
         l2 = {"loo": {}, "harsanyi": {}}
 
-        # LOO for each agent
         for i, s in enumerate(strategy_names):
             if s in non_ablatable:
                 l2["loo"][s] = {m: 0.0 for m in metrics}
@@ -239,13 +192,15 @@ def analyze_one_bootstrap(
             deltas = {}
             for m in metrics:
                 M_k = metric_matrices[m]
-                w_full = result["level1"][solver]["welfare"][m]
+                w_full = level1[solver]["welfare"][m]
                 M_loo = M_k[np.ix_(loo_idx, loo_idx)]
                 w_loo = _eval_welfare(sigma_loo, M_loo)
                 deltas[m] = w_full - w_loo
             l2["loo"][s] = deltas
+            l2["loo"][s]["sigma"] = sigma_loo
 
-        # Harsanyi dividends for each pair
+        # Second-order LOO effects (pairwise interactions; stored under
+        # the "harsanyi" key for back-compat with existing pickles)
         if do_harsanyi:
             ablatable = [s for s in strategy_names if s not in non_ablatable]
             for s_a, s_b in combinations(ablatable, 2):
@@ -263,228 +218,147 @@ def analyze_one_bootstrap(
                 dividends = {}
                 for m in metrics:
                     M_k = metric_matrices[m]
-                    w_full = result["level1"][solver]["welfare"][m]
-                    w_loo_a = w_full - l2["loo"][s_a][m]  # W(LOO_a) = W(full) - delta_a
+                    w_full = level1[solver]["welfare"][m]
+                    w_loo_a = w_full - l2["loo"][s_a][m]
                     w_loo_b = w_full - l2["loo"][s_b][m]
                     M_lto = M_k[np.ix_(lto_idx, lto_idx)]
                     w_lto = _eval_welfare(sigma_lto, M_lto)
-                    #dividends[m] = w_full - (w_full - l2["loo"][s_a][m]) - (w_full - l2["loo"][s_b][m]) + w_lto
-                    dividends[m] = w_full - w_loo_a - w_loo_b + w_lto #TODO check this fix
+                    dividends[m] = w_full - w_loo_a - w_loo_b + w_lto
                 l2["harsanyi"][(s_a, s_b)] = dividends
 
-        result["level2"][solver] = l2
+        level2[solver] = l2
+    return level2
+  
 
-    # ── Level 3: CURB-conditional LOO ──
-    if do_curb and HAS_CURB:
-        # Find CURB sets
-        minimals = find_minimal_curb_sets_klimm_weibull(payoff_matrix, n)
-        all_curbs = set(frozenset(m) for m in minimals)
-        # MC sampling for non-minimals
-        rng = np.random.default_rng()
-        for _ in range(mc_curb_budget):
-            seed_size = rng.integers(2, n + 1)
-            seed = set(rng.choice(n, size=seed_size, replace=False).tolist())
-            c = curb_closure(payoff_matrix, seed)
-            all_curbs.add(c)
+def _compute_level3(payoff_matrix, metric_matrices, strategy_names, solvers, metrics, non_ablatable, mc_curb_budget):
+    """Level 3: CURB-conditional LOO. Returns (level3_dict, curb_info_dict)."""
+    n = len(strategy_names)
 
-        result["curb_info"]["minimal_curb_sets"] = [list(m) for m in minimals]
-        result["curb_info"]["all_curb_sets"] = [list(c) for c in all_curbs]
-        result["curb_info"]["n_curb_sets"] = len(all_curbs)
+    # Find CURB sets
+    minimals = find_minimal_curb_sets_klimm_weibull(payoff_matrix, n)
+    all_curbs = set(frozenset(m) for m in minimals)
+    # TODO: Replace or supplement MC with lattice enumeration from minimals:
+    # 1. Enumerate all subsets of minimal CURB sets, compute closure of each union.
+    #    With k minimals this is 2^k - 1 closures (exact, deterministic).
+    # 2. Then bias remaining MC budget toward seeds that include strategies
+    #    outside the already-found CURB sets, to discover novel non-minimals
+    #    that aren't just unions of known minimals.
+    # MC sampling for non-minimals
+    rng = np.random.default_rng()
+    for _ in range(mc_curb_budget):
+        seed_size = rng.integers(2, n + 1)
+        seed = set(rng.choice(n, size=seed_size, replace=False).tolist())
+        c = curb_closure(payoff_matrix, seed)
+        all_curbs.add(c)
 
-        # Solve NE within each CURB set, keyed by solver
-        result["level3"] = {}
-        for solver in solvers:
-            curb_results = []
-            for c in all_curbs:
-                c_idx = sorted(c)
-                c_names = [strategy_names[j] for j in c_idx]
-                c_payoff = payoff_matrix[np.ix_(c_idx, c_idx)]
-
-                sigma_c = _solve(solver, c_payoff, c_names)
-                if sigma_c is None:
-                    continue
-
-                welfare = {}
-                for m in metrics:
-                    M_k = metric_matrices[m]
-                    M_c = M_k[np.ix_(c_idx, c_idx)]
-                    welfare[m] = _eval_welfare(sigma_c, M_c)
-
-                curb_results.append({
-                    "curb_set": frozenset(c),
-                    "idx": c_idx,
-                    "sigma": sigma_c,
-                    **welfare,
-                })
-
-            # LOO within each CURB set
-            l3 = {}
-            for i, s in enumerate(strategy_names):
-                if s in non_ablatable:
-                    l3[s] = {m: {"min": 0.0, "max": 0.0} for m in metrics}
-                    continue
-
-                loo_deltas = {m: [] for m in metrics}
-
-                for cr in curb_results:
-                    if i not in cr["curb_set"]:
-                        continue
-                    if len(cr["curb_set"]) < 2:
-                        continue
-
-                    c_minus_i = [j for j in cr["idx"] if j != i]
-                    if len(c_minus_i) < 1:
-                        continue
-
-                    c_minus_names = [strategy_names[j] for j in c_minus_i]
-                    c_minus_payoff = payoff_matrix[np.ix_(c_minus_i, c_minus_i)]
-
-                    sigma_loo_c = _solve(solver, c_minus_payoff, c_minus_names)
-                    if sigma_loo_c is None:
-                        continue
-
-                    for m in metrics:
-                        M_k = metric_matrices[m]
-                        M_loo = M_k[np.ix_(c_minus_i, c_minus_i)]
-                        w_loo = _eval_welfare(sigma_loo_c, M_loo)
-                        loo_deltas[m].append(cr[m] - w_loo)
-
-                agent_l3 = {}
-                for m in metrics:
-                    if loo_deltas[m]:
-                        agent_l3[m] = {
-                            "min": min(loo_deltas[m]),
-                            "max": max(loo_deltas[m]),
-                            "all_deltas": loo_deltas[m],
-                        }
-                    else:
-                        agent_l3[m] = {"min": 0.0, "max": 0.0, "all_deltas": []}
-                l3[s] = agent_l3
-
-            result["level3"][solver] = l3
-
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Main pipeline
-# ---------------------------------------------------------------------------
-
-def run_causal_pipeline(
-    build_bootstrap_fn: Callable,
-    strategy_names: List[str],
-    solvers: List[str] = None,
-    metrics: List[str] = None,
-    n_bootstrap: int = 1000,
-    seed: int = 42,
-    non_ablatable: Optional[set] = None,
-    do_harsanyi: bool = True,
-    do_curb: bool = True,
-    mc_curb_budget: int = 50,
-    max_workers: Optional[int] = None,
-    verbose: bool = True,
-):
-    """Run the unified causal metagame analysis pipeline.
-
-    Args:
-        build_bootstrap_fn: Callable that takes (rng,) and returns a dict with:
-            - "payoff": (n, n) payoff matrix for equilibrium solving
-            - metric_name: (n, n) matrix for each metric
-            e.g., {"payoff": M, "uw": M_uw, "nw": M_nw, "coop": M_coop}
-        strategy_names: List of strategy names.
-        solvers: List of solver names. Default: ["mene"].
-        metrics: List of metric names (must be keys returned by build_bootstrap_fn,
-            excluding "payoff"). Default: all keys except "payoff".
-        n_bootstrap: Number of bootstrap samples.
-        seed: Random seed.
-        non_ablatable: Set of strategy names that cannot be removed.
-        do_harsanyi: Whether to compute Harsanyi dividends (Level 2).
-        do_curb: Whether to compute CURB analysis (Level 3).
-        mc_curb_budget: MC samples for non-minimal CURB sets.
-        verbose: Whether to print progress.
-
-    Returns:
-        Dict with:
-            - "raw": List of per-bootstrap results
-            - "config": Configuration parameters
-            - "aggregated": Aggregated statistics
-    """
-    if solvers is None:
-        solvers = ["mene"]
-    non_ablatable = non_ablatable or set()
-
-    # Infer metrics from first bootstrap if not specified
-    rng_probe = np.random.default_rng(seed)
-    if metrics is None:
-        first_boot = build_bootstrap_fn(rng_probe)
-        metrics = [k for k in first_boot.keys() if k != "payoff"]
-
-    # Pre-generate all bootstrap matrices (needed for parallel or sequential)
-    if verbose:
-        print(f"Generating {n_bootstrap} bootstrap samples...")
-    rng = np.random.default_rng(seed)
-    all_boots = []
-    for _ in tqdm(range(n_bootstrap), desc="Building matrices", disable=not verbose):
-        all_boots.append(build_bootstrap_fn(rng))
-
-    # Worker function for parallel execution
-    def _process_one(boot):
-        payoff_matrix = boot["payoff"]
-        metric_matrices = {m: boot[m] for m in metrics}
-        return analyze_one_bootstrap(
-            payoff_matrix=payoff_matrix,
-            metric_matrices=metric_matrices,
-            strategy_names=strategy_names,
-            solvers=solvers,
-            metrics=metrics,
-            non_ablatable=non_ablatable,
-            do_harsanyi=do_harsanyi,
-            do_curb=do_curb,
-            mc_curb_budget=mc_curb_budget,
-        )
-
-    if max_workers is not None and max_workers > 1:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        if verbose:
-            print(f"Running {n_bootstrap} bootstraps with {max_workers} workers...")
-        raw_results = []
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(_process_one, boot): i
-                       for i, boot in enumerate(all_boots)}
-            pbar = tqdm(total=n_bootstrap, desc="Bootstrap samples", disable=not verbose)
-            for future in as_completed(futures):
-                raw_results.append((futures[future], future.result()))
-                pbar.update(1)
-            pbar.close()
-        # Sort by original index to maintain reproducibility
-        raw_results.sort(key=lambda x: x[0])
-        raw_results = [r for _, r in raw_results]
-    else:
-        raw_results = []
-        for boot in tqdm(all_boots, desc="Bootstrap samples", disable=not verbose):
-            raw_results.append(_process_one(boot))
-
-    # Aggregate
-    aggregated = _aggregate_results(raw_results, strategy_names, solvers, metrics)
-
-    return {
-        "raw": raw_results,
-        "config": {
-            "strategy_names": strategy_names,
-            "solvers": solvers,
-            "metrics": metrics,
-            "n_bootstrap": n_bootstrap,
-            "seed": seed,
-            "do_harsanyi": do_harsanyi,
-            "do_curb": do_curb,
-        },
-        "aggregated": aggregated,
+    curb_info = {
+        "minimal_curb_sets": [list(m) for m in minimals],
+        "all_curb_sets": [list(c) for c in all_curbs],
+        "n_curb_sets": len(all_curbs),
     }
 
+    # Solve NE within each CURB set, keyed by solver
+    level3 = {}
+    for solver in solvers:
+        curb_results = []
+        for c in all_curbs:
+            c_idx = sorted(c)
+            c_names = [strategy_names[j] for j in c_idx]
+            c_payoff = payoff_matrix[np.ix_(c_idx, c_idx)]
 
-# ---------------------------------------------------------------------------
-# Aggregation
-# ---------------------------------------------------------------------------
+            sigma_c = _solve(solver, c_payoff, c_names)
+            if sigma_c is None:
+                continue
+
+            welfare = {}
+            for m in metrics:
+                M_k = metric_matrices[m]
+                M_c = M_k[np.ix_(c_idx, c_idx)]
+                welfare[m] = _eval_welfare(sigma_c, M_c)
+
+            curb_results.append({
+                "curb_set": frozenset(c),
+                "idx": c_idx,
+                "sigma": sigma_c,
+                **welfare,
+            })
+
+        # LOO within each CURB set
+        l3 = {}
+        for i, s in enumerate(strategy_names):
+            if s in non_ablatable:
+                l3[s] = {m: {"min": 0.0, "max": 0.0} for m in metrics}
+                continue
+
+            loo_deltas = {m: [] for m in metrics}
+            loo_sigmas = []
+
+            for cr in curb_results:
+                if i not in cr["curb_set"]:
+                    continue
+                if len(cr["curb_set"]) < 2:
+                    continue
+
+                c_minus_i = [j for j in cr["idx"] if j != i]
+                if len(c_minus_i) < 1:
+                    continue
+
+                c_minus_names = [strategy_names[j] for j in c_minus_i]
+                c_minus_payoff = payoff_matrix[np.ix_(c_minus_i, c_minus_i)]
+
+                sigma_loo_c = _solve(solver, c_minus_payoff, c_minus_names)
+                if sigma_loo_c is None:
+                    continue
+
+                loo_sigmas.append({
+                    "curb_set": cr["curb_set"],
+                    "sigma_curb": cr["sigma"],
+                    "sigma_loo": sigma_loo_c,
+                    "curb_idx": cr["idx"],
+                    "loo_idx": c_minus_i,
+                })
+
+                for m in metrics:
+                    M_k = metric_matrices[m]
+                    M_loo = M_k[np.ix_(c_minus_i, c_minus_i)]
+                    w_loo = _eval_welfare(sigma_loo_c, M_loo)
+                    loo_deltas[m].append(cr[m] - w_loo)
+
+            agent_l3 = {}
+            for m in metrics:
+                if loo_deltas[m]:
+                    agent_l3[m] = {
+                        "min": min(loo_deltas[m]),
+                        "max": max(loo_deltas[m]),
+                        "all_deltas": loo_deltas[m],
+                    }
+                else:
+                    agent_l3[m] = {"min": 0.0, "max": 0.0, "all_deltas": []}
+            agent_l3["sigmas"] = loo_sigmas
+            l3[s] = agent_l3
+
+        level3[solver] = l3
+    return level3, curb_info
+    
+
+
+
+def analyze_one_bootstrap(payoff_matrix, metric_matrices, strategy_names, solvers, metrics,
+                          non_ablatable=None, do_harsanyi=True, do_curb=True, mc_curb_budget=50):
+    """Run all three levels on one bootstrapped game."""
+    non_ablatable = non_ablatable or set()
+    result = {}
+    result["level1"] = _compute_level1(payoff_matrix, metric_matrices, strategy_names, solvers, metrics)
+    result["level2"] = _compute_level2(payoff_matrix, metric_matrices, strategy_names, solvers, metrics,
+                                        result["level1"], non_ablatable, do_harsanyi)
+    if do_curb:
+        result["level3"], result["curb_info"] = _compute_level3(payoff_matrix, metric_matrices, strategy_names,
+                                                                 solvers, metrics, non_ablatable, mc_curb_budget)
+    else:
+        result["level3"] = {}
+        result["curb_info"] = {}
+    return result
+
 
 def _summarize(values):
     """Compute mean, std, 95% CI."""
@@ -581,7 +455,7 @@ def _aggregate_results(raw_results, strategy_names, solvers, metrics):
                         if r["level2"].get(solver) and name in r["level2"][solver]["loo"]]
                 solver_l2["loo"][name][m] = _summarize(vals) if vals else _summarize([0.0])
 
-        # Harsanyi
+        # Second-order LOO effects (dict key kept as "harsanyi" for pickle back-compat)
         if raw_results[0]["level2"].get(solver) and raw_results[0]["level2"][solver].get("harsanyi"):
             for pair in raw_results[0]["level2"][solver]["harsanyi"]:
                 solver_l2["harsanyi"][pair] = {}
@@ -613,7 +487,7 @@ def _aggregate_results(raw_results, strategy_names, solvers, metrics):
                     "max": _summarize(max_vals) if max_vals else _summarize([0.0]),
                 }
 
-    # CURB survival
+    
     curb_counts = {}
     for r in raw_results:
         for c in r.get("curb_info", {}).get("all_curb_sets", []):
@@ -737,10 +611,6 @@ def print_results(results):
                           f"{mx['mean']:>+.4f} [{mx['ci_lower']:>+.4f}, {mx['ci_upper']:>+.4f}]")
 
 
-# ---------------------------------------------------------------------------
-# Save / Load
-# ---------------------------------------------------------------------------
-
 def save_results(results, output_path):
     """Save results to pickle and JSON."""
     output_path = Path(output_path)
@@ -759,110 +629,3 @@ def load_results(output_path):
         return pickle.load(f)
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    import argparse
-    import sys
-
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-    parser = argparse.ArgumentParser(description="Causal metagame analysis")
-    parser.add_argument("--domain", choices=["bargaining", "pd"], default="bargaining")
-    parser.add_argument("--n-bootstrap", type=int, default=10)
-    parser.add_argument("--solvers", nargs="+", default=["mene"])
-    parser.add_argument("--no-harsanyi", action="store_true")
-    parser.add_argument("--no-curb", action="store_true")
-    parser.add_argument("--mc-curb-budget", type=int, default=50)
-    parser.add_argument("--max-workers", type=int, default=None,
-                        help="Number of parallel workers. Default: sequential.")
-    parser.add_argument("--output", type=str, default=None)
-    parser.add_argument("--seed", type=int, default=42)
-    args = parser.parse_args()
-
-    if args.domain == "bargaining":
-        from evaluation.original_paper_analysis import (
-            load_and_preprocess_data, build_matrices_fast,
-        )
-        crossplay_dir = Path(__file__).parent.parent.parent / "data" / "crossplay"
-        strategy_names = [
-            "walk", "tough", "soft", "openai_5.2_none", "openai_5.2_low",
-            "ef1_bargainer", "nfsp", "ppo", "psro", "mappo",
-            "openai_5.4_low", "openai_5.2_medium", "openai_5.4_medium",
-        ]
-        print(f"Loading bargaining data from {crossplay_dir}...")
-        grouped_data = load_and_preprocess_data(crossplay_dir, strategy_names)
-
-        def build_bootstrap(rng):
-            matrices = build_matrices_fast(
-                grouped_data, strategy_names, rng, raw_utility=True
-            )
-            return {
-                "payoff": matrices["raw_payoff"],
-                "uw": matrices["uw"],
-                "nw": matrices["nw"],
-                "nw_plus": matrices["nw_plus"],
-                "ef1": np.nan_to_num(matrices["ef1"], nan=0.0),
-                "ef1_plus": np.nan_to_num(matrices["ef1_plus"], nan=0.0),
-            }
-
-        metrics = ["uw", "nw", "nw_plus", "ef1", "ef1_plus"]
-        non_ablatable = {"walk"}
-
-    elif args.domain == "pd":
-        pd_path = Path(__file__).parent.parent.parent / "data" / "pd_tournament.pkl"
-        if not pd_path.exists():
-            pd_path = Path(__file__).parent.parent.parent / "notebooks" / "pd_data" / "pd_tournament.pkl"
-        print(f"Loading PD data from {pd_path}...")
-        with open(pd_path, "rb") as f:
-            pd_data = pickle.load(f)
-
-        strategy_names = pd_data["strategy_names"]
-        payoff_reps = pd_data["payoff_reps"]
-        coop_matrix = pd_data["coop_matrix"]
-        n = len(strategy_names)
-        n_reps = payoff_reps.shape[0]
-
-        def build_bootstrap(rng):
-            boot = np.zeros((n, n))
-            for i in range(n):
-                for j in range(n):
-                    idx = rng.choice(n_reps, size=n_reps, replace=True)
-                    boot[i, j] = payoff_reps[idx, i, j].mean()
-            return {"payoff": boot, "coop": coop_matrix}
-
-        metrics = ["payoff", "coop"]
-        non_ablatable = set()
-
-    print(f"\nRunning causal analysis:")
-    print(f"  Domain: {args.domain}")
-    print(f"  Strategies: {len(strategy_names)}")
-    print(f"  Solvers: {args.solvers}")
-    print(f"  Bootstraps: {args.n_bootstrap}")
-    print(f"  Harsanyi: {not args.no_harsanyi}")
-    print(f"  CURB: {not args.no_curb}")
-    print()
-
-    results = run_causal_pipeline(
-        build_bootstrap_fn=build_bootstrap,
-        strategy_names=strategy_names,
-        solvers=args.solvers,
-        metrics=metrics,
-        n_bootstrap=args.n_bootstrap,
-        seed=args.seed,
-        non_ablatable=non_ablatable,
-        do_harsanyi=not args.no_harsanyi,
-        do_curb=not args.no_curb,
-        mc_curb_budget=args.mc_curb_budget,
-        max_workers=args.max_workers,
-    )
-
-    print_results(results)
-
-    if args.output:
-        save_results(results, args.output)
-    else:
-        default_path = Path(__file__).parent.parent.parent / "data" / "analysis" / f"causal_{args.domain}"
-        save_results(results, default_path)

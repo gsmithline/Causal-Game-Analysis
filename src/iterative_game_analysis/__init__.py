@@ -59,12 +59,12 @@ from .full_analysis import (
     print_results,
 )
 from .causal_analysis import (
-    run_causal_pipeline,
     analyze_one_bootstrap,
     print_results as print_causal_results,
     save_results as save_causal_results,
     load_results as load_causal_results,
 )
+from .causal_analysis_runner import run_causal_pipeline
 
 __all__ = [
     # Core classes

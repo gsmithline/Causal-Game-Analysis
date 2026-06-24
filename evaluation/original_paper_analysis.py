@@ -192,133 +192,129 @@ def exists_ef1_beating_batnas(
 
     
     
+def load_single_matchup(
+    crossplay_dir: Path,
+    strat_i: str,
+    strat_j: str,
+) -> Dict[str, np.ndarray]:
+    """Load + preprocess a single matchup. Returns None if missing."""
+    matchup_dir = crossplay_dir / f"{strat_i}_p1_vs_{strat_j}_p2"
+    games_path = matchup_dir / "games.json"
+
+    if not games_path.exists():
+        print(f"Warning: No games found for {strat_i} vs {strat_j}")
+        return None
+
+    print(f"  Loading {strat_i} vs {strat_j}...")
+    data = load_json(games_path)
+
+    games = data["games"]
+
+    # Cap aspiration vs openai_5.2_none (both directions) at 2000 games
+    # to keep that matchup balanced — it has more games than the rest.
+    pair = {strat_i, strat_j}
+    if pair == {"aspiration", "openai_5.2_none"} and len(games) > 2000:
+        games = games[:2000]
+
+    return _preprocess_games(games)
+
+
 def load_and_preprocess_data(
     crossplay_dir: Path,
     strategy_names: List[str],
 ) -> Dict[Tuple[str, str], Dict[str, np.ndarray]]:
-    """
-    Load all games and pre-process into numpy arrays grouped by strategy pair.
-
-    Returns:
-        Dict mapping (policy_i, policy_j) -> {
-            'payoff_i': np.ndarray (normalized),
-            'payoff_j': np.ndarray (normalized),
-            'batna_i': np.ndarray (normalized),
-            'batna_j': np.ndarray (normalized),
-            'raw_payoff_i': np.ndarray (raw utility space),
-            'raw_payoff_j': np.ndarray (raw utility space),
-            'raw_batna_i': np.ndarray (raw utility space),
-            'raw_batna_j': np.ndarray (raw utility space),
-            'is_accept': np.ndarray (bool),
-            'ef1': np.ndarray (bool, only valid where is_accept=True),
-            'n_games': int
-        }
-    """
+    """Load all games and pre-process into numpy arrays grouped by strategy pair."""
     grouped_data = {}
-
     for strat_i in strategy_names:
         for strat_j in strategy_names:
-            matchup_dir = crossplay_dir / f"{strat_i}_p1_vs_{strat_j}_p2"
-            games_path = matchup_dir / "games.json"
-
-            if not games_path.exists():
-                print(f"Warning: No games found for {strat_i} vs {strat_j}")
-                continue
-
-            print(f"  Loading {strat_i} vs {strat_j}...")
-            data = load_json(games_path)
-
-            games = data["games"]
-            n_games = len(games)
-
-            # Pre-allocate arrays
-            payoff_i = np.zeros(n_games)
-            payoff_j = np.zeros(n_games)
-            batna_i = np.zeros(n_games)
-            batna_j = np.zeros(n_games)
-            is_accept = np.zeros(n_games, dtype=bool)
-            ef1 = np.zeros(n_games, dtype=bool)
-            utilities_p1_all = np.zeros((n_games, 3))
-            utilities_p2_all = np.zeros((n_games, 3))
-
-            # Track which games have allocation data for EF1
-            has_allocation = False
-            utilities_p1_list = []
-            utilities_p2_list = []
-            allocation_p1_list = []
-            allocation_p2_list = []
-            accept_indices = []
-
-            for idx, game in enumerate(games):
-                outcome = game["outcome"]
-                payoff_i[idx] = outcome["payoff_p1"]
-                payoff_j[idx] = outcome["payoff_p2"]
-                batna_i[idx] = outcome["batna_p1"]
-                batna_j[idx] = outcome["batna_p2"]
-
-                if outcome.get("utilities_p1"):
-                    utilities_p1_all[idx] = outcome["utilities_p1"]
-                    utilities_p2_all[idx] = outcome["utilities_p2"]
-
-                if outcome["result"] == "accept":
-                    is_accept[idx] = True
-                    if outcome.get("utilities_p1") and outcome.get("allocation_p1"):
-                        has_allocation = True
-                        accept_indices.append(idx)
-                        utilities_p1_list.append(outcome["utilities_p1"])
-                        utilities_p2_list.append(outcome["utilities_p2"])
-                        allocation_p1_list.append(outcome["allocation_p1"])
-                        allocation_p2_list.append(outcome["allocation_p2"])
-
-
-
-            # Compute EF1 vectorized for all accept games with allocation data
-            if has_allocation and len(accept_indices) > 0:
-                utilities_p1_arr = np.array(utilities_p1_list)
-                utilities_p2_arr = np.array(utilities_p2_list)
-                allocation_p1_arr = np.array(allocation_p1_list)
-                allocation_p2_arr = np.array(allocation_p2_list)
-
-                ef1_results = is_ef1_vectorized(
-                    utilities_p1_arr, utilities_p2_arr,
-                    allocation_p1_arr, allocation_p2_arr
-                )
-                ef1[accept_indices] = ef1_results
-            
-            # Convert to raw utility space using utility vectors
-            max_possible_i = np.sum(utilities_p1_all * ITEM_QUANTITIES, axis=1)
-            max_possible_j = np.sum(utilities_p2_all * ITEM_QUANTITIES, axis=1)
-            raw_payoff_i = payoff_i * max_possible_i
-            raw_payoff_j = payoff_j * max_possible_j
-            raw_batna_i = batna_i * max_possible_i
-            raw_batna_j = batna_j * max_possible_j
-
-            # EF1+: does the actual outcome beat both BATNAs? (raw space, with tolerance for float precision)
-            _EPS = 1e-4
-            outcome_beats_batnas = (raw_payoff_i > raw_batna_i - _EPS) & (raw_payoff_j > raw_batna_j - _EPS)
-
-            # EF1+: does there exist any allocation that is EF1 and beats both BATNAs?
-            ef1_rational_exists = exists_ef1_beating_batnas(
-                utilities_p1_all, utilities_p2_all, raw_batna_i, raw_batna_j
-            )
-
-            grouped_data[(strat_i, strat_j)] = {
-                'payoff_i': payoff_i,
-                'payoff_j': payoff_j,
-                'batna_i': batna_i,
-                'batna_j': batna_j,
-                'raw_payoff_i': raw_payoff_i,
-                'raw_payoff_j': raw_payoff_j,
-                'raw_batna_i': raw_batna_i,
-                'raw_batna_j': raw_batna_j,
-                'is_accept': is_accept,
-                'ef1': ef1,
-                'outcome_beats_batnas': outcome_beats_batnas,
-                'ef1_rational_exists': ef1_rational_exists,
-                'n_games': n_games,
-            }
-
+            result = load_single_matchup(crossplay_dir, strat_i, strat_j)
+            if result is not None:
+                grouped_data[(strat_i, strat_j)] = result
     return grouped_data
+
+
+def _preprocess_games(games) -> Dict[str, np.ndarray]:
+    """Extract numpy arrays from a list of game dicts."""
+    n_games = len(games)
+
+    payoff_i = np.zeros(n_games)
+    payoff_j = np.zeros(n_games)
+    batna_i = np.zeros(n_games)
+    batna_j = np.zeros(n_games)
+    is_accept = np.zeros(n_games, dtype=bool)
+    ef1 = np.zeros(n_games, dtype=bool)
+    utilities_p1_all = np.zeros((n_games, 3))
+    utilities_p2_all = np.zeros((n_games, 3))
+
+    has_allocation = False
+    utilities_p1_list = []
+    utilities_p2_list = []
+    allocation_p1_list = []
+    allocation_p2_list = []
+    accept_indices = []
+
+    for idx, game in enumerate(games):
+        outcome = game["outcome"]
+        payoff_i[idx] = outcome["payoff_p1"]
+        payoff_j[idx] = outcome["payoff_p2"]
+        batna_i[idx] = outcome["batna_p1"]
+        batna_j[idx] = outcome["batna_p2"]
+
+        if outcome.get("utilities_p1"):
+            utilities_p1_all[idx] = outcome["utilities_p1"]
+            utilities_p2_all[idx] = outcome["utilities_p2"]
+
+        if outcome["result"] == "accept":
+            is_accept[idx] = True
+            if outcome.get("utilities_p1") and outcome.get("allocation_p1"):
+                has_allocation = True
+                accept_indices.append(idx)
+                utilities_p1_list.append(outcome["utilities_p1"])
+                utilities_p2_list.append(outcome["utilities_p2"])
+                allocation_p1_list.append(outcome["allocation_p1"])
+                allocation_p2_list.append(outcome["allocation_p2"])
+
+    if has_allocation and len(accept_indices) > 0:
+        utilities_p1_arr = np.array(utilities_p1_list)
+        utilities_p2_arr = np.array(utilities_p2_list)
+        allocation_p1_arr = np.array(allocation_p1_list)
+        allocation_p2_arr = np.array(allocation_p2_list)
+
+        ef1_results = is_ef1_vectorized(
+            utilities_p1_arr, utilities_p2_arr,
+            allocation_p1_arr, allocation_p2_arr
+        )
+        ef1[accept_indices] = ef1_results
+
+    max_possible_i = np.sum(utilities_p1_all * ITEM_QUANTITIES, axis=1)
+    max_possible_j = np.sum(utilities_p2_all * ITEM_QUANTITIES, axis=1)
+    raw_payoff_i = payoff_i * max_possible_i
+    raw_payoff_j = payoff_j * max_possible_j
+    raw_batna_i = batna_i * max_possible_i
+    raw_batna_j = batna_j * max_possible_j
+
+    _EPS = 1e-4
+    outcome_beats_batnas = (raw_payoff_i > raw_batna_i - _EPS) & (raw_payoff_j > raw_batna_j - _EPS)
+
+    ef1_rational_exists = exists_ef1_beating_batnas(
+        utilities_p1_all, utilities_p2_all, raw_batna_i, raw_batna_j
+    )
+
+    return {
+        'payoff_i': payoff_i,
+        'payoff_j': payoff_j,
+        'batna_i': batna_i,
+        'batna_j': batna_j,
+        'raw_payoff_i': raw_payoff_i,
+        'raw_payoff_j': raw_payoff_j,
+        'raw_batna_i': raw_batna_i,
+        'raw_batna_j': raw_batna_j,
+        'is_accept': is_accept,
+        'ef1': ef1,
+        'outcome_beats_batnas': outcome_beats_batnas,
+        'ef1_rational_exists': ef1_rational_exists,
+        'n_games': n_games,
+    }
 
 
 def build_matrices_fast(

@@ -28,7 +28,7 @@ Our answer: removing an agent from a restricted game does not remove it from the
 
 ### Levels of counterfactual analysis
 
-**Level 2 (full-game LOO)** measures each agent's externality on the full game. **Harsanyi interaction dividends** extend this to pairwise interactions: does the impact of agent A depend on whether agent B is present? **Level 3 (CURB-conditional LOO)** evaluates whether the L2 effect holds up across strategically coherent restricted games (CURB sets), or whether it is context-dependent. Together they reveal which parts of the equilibrium prediction are robust to the composition of the strategy set and which are fragile.
+**Level 2 (full-game LOO)** measures each agent's externality on the full game. **Second-order LOO effects** extend this to pairwise interactions: does the impact of agent A depend on whether agent B is present? **Level 3 (CURB-conditional LOO)** evaluates whether the L2 effect holds up across strategically coherent restricted games (CURB sets), or whether it is context-dependent. Together they reveal which parts of the equilibrium prediction are robust to the composition of the strategy set and which are fragile.
 
 ### Interpreting the results
 
@@ -36,11 +36,11 @@ Our answer: removing an agent from a restricted game does not remove it from the
 
 **Magnitude.** The magnitude of ΔW is interpretable relative to the full-game equilibrium welfare, which we report alongside LOO effects. Near-zero effects indicate substitutability or irrelevance regardless of sign.
 
-**What this measures.** The LOO effect measures the equilibrium consequence of an agent's *availability* as a strategic option. It is a property of the game structure, not of the agent in isolation. Two different solvers may attribute different effects to the same agent because the effect depends on which equilibrium is selected — this is why Level 3 exists. The LOO decomposition is not prescriptive: it does not recommend removing agents, just as ANOVA decomposes variance into attributable factors without recommending that any factor be eliminated. Like ANOVA, LOO attributes system-level outcomes to individual factors. Unlike ANOVA, the effects are not additive — interaction effects between agents are measured separately via Harsanyi interaction dividends.
+**What this measures.** The LOO effect measures the equilibrium consequence of an agent's *availability* as a strategic option. It is a property of the game structure, not of the agent in isolation. Two different solvers may attribute different effects to the same agent because the effect depends on which equilibrium is selected — this is why Level 3 exists. The LOO decomposition is not prescriptive: it does not recommend removing agents, just as ANOVA decomposes variance into attributable factors without recommending that any factor be eliminated. Like ANOVA, LOO attributes system-level outcomes to individual factors. Unlike ANOVA, the effects are not additive — interaction effects between agents are measured separately as second-order LOO effects (finite differences of the welfare function at the grand coalition).
 
 **Counterfactual, not causal.** The LOO effect compares two equilibria — the full game and the game without an agent. It is counterfactual in the game-theoretic sense (comparing two games), not in the interventionist sense (claiming you could engineer an outcome by removing an agent). The equilibrium is already a theoretical prediction, not a literal forecast of deployment; LOO compares two such predictions. This is the appropriate level of analysis for EGTA — we are working within the model, not claiming the model perfectly maps to real-world outcomes.
 
-**Additivity and higher-order interactions.** LOO gives main effects (each agent's individual contribution). Harsanyi interaction dividends give all pairwise interactions (complementarity and substitution). Higher-order interactions (three-way, four-way, etc.) exist in principle — the Harsanyi formula generalizes to any order via inclusion-exclusion — but require 2^k sub-games for k agents and are rarely the dominant structure in practice. As with ANOVA, we report main effects and two-way interactions, which captures the dominant structure.
+**Additivity and higher-order interactions.** LOO gives main effects (each agent's individual contribution). Second-order LOO effects give all pairwise interactions (complementarity and substitution). Higher-order interactions (three-way, four-way, etc.) exist in principle — the Möbius / Harsanyi inclusion-exclusion formula generalizes the construction to any order — but require 2^k sub-games for k agents and are rarely the dominant structure in practice. As with ANOVA, we report main effects and two-way interactions, which captures the dominant structure.
 
 **Level 3 classification.** Each CURB set represents a self-reinforcing strategic context — a subset of strategies that could sustain play on their own. When an agent's LOO effect varies across CURB sets, it means the agent's contribution to welfare genuinely depends on what alternatives are available, not that the measurement is unstable.
 
@@ -125,7 +125,7 @@ d_b = W(full, b) - W(LOO_i, b)
 
 This measures each agent's counterfactual contribution to equilibrium welfare. However, results are solver-dependent: different solution concepts can identify different agents as important. Answers: "which agents counterfactually drive the equilibrium?"
 
-**Harsanyi Interaction Dividends** extend LOO to pairwise interactions, computed on the same bootstrap sample (full, LOO, and LTO all from one resample):
+**Second-order LOO effects** extend LOO to pairwise interactions, computed on the same bootstrap sample (full, LOO, and LTO all from one resample). These are second-order finite differences of the welfare set-function at the grand coalition X — equivalent to the order-2 Möbius coefficient evaluated at X, often called a Harsanyi dividend in cooperative game theory (Harsanyi 1959):
 
 ```
 Δ²W(sᵢ, sⱼ | X) = W(σ*_X) - W(σ*_{X\{sᵢ}}) - W(σ*_{X\{sⱼ}}) + W(σ*_{X\{sᵢ,sⱼ}})
